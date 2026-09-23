@@ -1,0 +1,44 @@
+name: Bootstrap ACGC Android V4
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v4-pal-multi5-audio
+    paths:
+      - ".bootstrap/**"
+      - ".github/workflows/v4-bootstrap.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-v4:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply verified V4 overlay
+        run: |
+          set -euo pipefail
+          test -f .bootstrap/v4_overlay.tar.gz
+          tar -xzf .bootstrap/v4_overlay.tar.gz -C .
+          rm -rf .bootstrap
+          rm -f .github/workflows/v4-bootstrap.yml
+          rm -f android/app/src/main/java/com/acgc/port/ContentManagerActivity.java
+
+      - name: Commit expanded V4 sources
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "V4: PAL Multi5 language and regional audio support"
+          git push origin HEAD:v4-pal-multi5-audio
