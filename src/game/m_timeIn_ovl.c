@@ -1,4 +1,7 @@
 #include "m_timeIn_ovl.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 #include "m_common_data.h"
 #include "m_font.h"
@@ -396,6 +399,10 @@ static void mTI_set_clock(Submenu* submenu, GRAPH* graph, f32 x, f32 y) {
 static void mTI_set_character(Submenu* submenu, GAME* game, f32 x, f32 y) {
   static u8 str_line_adjust[17] = "Adjust the clock.";
   static u8 str_line_ok[2] = "OK";
+#ifdef TARGET_PC
+  pc_language_ui_copy(str_line_adjust, sizeof(str_line_adjust), "time.adjust_clock", "Adjust the clock.");
+  pc_language_ui_copy(str_line_ok, sizeof(str_line_ok), "common.ok", "OK");
+#endif
   static f32 set_pos[mTI_IDX_NUM][2] = {
     {  79.0f, 115.0f }, // mTI_IDX_HOUR
     { 103.0f, 115.0f }, // mTI_IDX_MIN

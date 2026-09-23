@@ -6,6 +6,9 @@
 #include "libforest/emu64.h"
 #include "_mem.h"
 #include "m_lib.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 #include "dolphin/os/OSArena.h"
 #include "libc64/malloc.h"
 
@@ -448,7 +451,7 @@ static const char* aram_resName[] = { "fgdata.bin",
                                       "d_bg_island_sch.bin" };
 
 extern u32 JW_GetAramAddress(int res_no) {
-    int address = 0;
+    u32 address = 0;
 
     if (res_no >= RESOURCE_FGDATA && res_no < RESOURCE_FGNPCDATA) {
         address = JC_JKRAramArchive_getAramAddress_byName(forest_arc_aram_p, (u32)'DATA', aram_resName[res_no]);
@@ -456,10 +459,18 @@ extern u32 JW_GetAramAddress(int res_no) {
         address = JC_JKRAramArchive_getAramAddress_byName(forest_arc_aram2_p, (u32)'DATA', aram_resName[res_no]);
     }
 
+#ifdef TARGET_PC
+    address = pc_language_override_address(res_no, address);
+#endif
     return address;
 }
 
 extern u8* _JW_GetResourceAram(u32 aram_addr, u8* dst, u32 size) {
+#ifdef TARGET_PC
+    if (pc_language_read_aram(aram_addr, dst, size)) {
+        return dst;
+    }
+#endif
     return JKRAramToMainRam(aram_addr, dst, size, EXPAND_SWITCH_DEFAULT, 0, nullptr, -1, nullptr);
 }
 
@@ -480,6 +491,9 @@ extern u32 JW_GetResSizeFileNo(int res_no) {
         }
     }
 
+#ifdef TARGET_PC
+    res_size = pc_language_override_size(res_no, res_size);
+#endif
     return res_size;
 }
 

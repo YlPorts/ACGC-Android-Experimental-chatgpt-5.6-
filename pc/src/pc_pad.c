@@ -6,7 +6,7 @@
 #include <dolphin/pad.h>
 
 /* analog stick constants */
-#define STICK_MAGNITUDE     80
+#define STICK_BASE_MAGNITUDE 80
 #define RUMBLE_DURATION_MS  200
 
 static SDL_GameController* g_controller = NULL;
@@ -16,6 +16,42 @@ static int deadzone_threshold(int percent) {
     if (percent < 0)  percent = 0;
     if (percent > 90) percent = 90;
     return percent * 32767 / 100;
+}
+
+static int clamp_sensitivity(int percent) {
+    if (percent < 50) percent = 50;
+    if (percent > 150) percent = 150;
+    return percent;
+}
+
+static s8 digital_stick_value(int direction, int sensitivity) {
+    int magnitude = STICK_BASE_MAGNITUDE * clamp_sensitivity(sensitivity) / 100;
+    if (magnitude > 127) magnitude = 127;
+    return (s8)(direction < 0 ? -magnitude : magnitude);
+}
+
+/* Remove the configured deadzone, remap the remaining range smoothly to
+ * GameCube stick units and then apply sensitivity. This avoids the jump that
+ * a simple threshold + bit shift creates near the centre. */
+static s8 analog_stick_value(s16 raw, int deadzone, int sensitivity, int invert) {
+    int threshold = deadzone_threshold(deadzone);
+    int value = (int)raw;
+    int sign;
+    int magnitude;
+    int usable;
+    int output;
+
+    if (invert) value = -value;
+    sign = value < 0 ? -1 : 1;
+    magnitude = value < 0 ? -value : value;
+    if (magnitude <= threshold) return 0;
+
+    usable = 32767 - threshold;
+    if (usable <= 0) return 0;
+    output = (magnitude - threshold) * 127 / usable;
+    output = output * clamp_sensitivity(sensitivity) / 100;
+    if (output > 127) output = 127;
+    return (s8)(sign * output);
 }
 
 /* is a remappable pad binding currently held? */
@@ -80,16 +116,24 @@ u32 PADRead(PADStatus* status) {
         if (INPUT_PRESSED(kb->r))     buttons |= PAD_TRIGGER_R;
 
         /* main stick */
-        if (INPUT_PRESSED(kb->stick_up))    stickY += STICK_MAGNITUDE;
-        if (INPUT_PRESSED(kb->stick_down))  stickY -= STICK_MAGNITUDE;
-        if (INPUT_PRESSED(kb->stick_left))  stickX -= STICK_MAGNITUDE;
-        if (INPUT_PRESSED(kb->stick_right)) stickX += STICK_MAGNITUDE;
+        if (INPUT_PRESSED(kb->stick_up))
+            stickY = digital_stick_value(+1, g_pc_settings.stick_sensitivity);
+        if (INPUT_PRESSED(kb->stick_down))
+            stickY = digital_stick_value(-1, g_pc_settings.stick_sensitivity);
+        if (INPUT_PRESSED(kb->stick_left))
+            stickX = digital_stick_value(-1, g_pc_settings.stick_sensitivity);
+        if (INPUT_PRESSED(kb->stick_right))
+            stickX = digital_stick_value(+1, g_pc_settings.stick_sensitivity);
 
         /* C-stick */
-        if (INPUT_PRESSED(kb->cstick_up))    cstickY += STICK_MAGNITUDE;
-        if (INPUT_PRESSED(kb->cstick_down))  cstickY -= STICK_MAGNITUDE;
-        if (INPUT_PRESSED(kb->cstick_left))  cstickX -= STICK_MAGNITUDE;
-        if (INPUT_PRESSED(kb->cstick_right)) cstickX += STICK_MAGNITUDE;
+        if (INPUT_PRESSED(kb->cstick_up))
+            cstickY = digital_stick_value(+1, g_pc_settings.cstick_sensitivity);
+        if (INPUT_PRESSED(kb->cstick_down))
+            cstickY = digital_stick_value(-1, g_pc_settings.cstick_sensitivity);
+        if (INPUT_PRESSED(kb->cstick_left))
+            cstickX = digital_stick_value(-1, g_pc_settings.cstick_sensitivity);
+        if (INPUT_PRESSED(kb->cstick_right))
+            cstickX = digital_stick_value(+1, g_pc_settings.cstick_sensitivity);
 
         /* D-pad */
         if (INPUT_PRESSED(kb->dpad_up))    buttons |= PAD_BUTTON_UP;
@@ -131,33 +175,22 @@ u32 PADRead(PADStatus* status) {
         if (pad_code_pressed(pb->dpad_left))  buttons |= PAD_BUTTON_LEFT;
         if (pad_code_pressed(pb->dpad_right)) buttons |= PAD_BUTTON_RIGHT;
 
-        int stick_dz  = deadzone_threshold(g_pc_settings.stick_deadzone);
-        int cstick_dz = deadzone_threshold(g_pc_settings.cstick_deadzone);
-
         s16 lx = SDL_GameControllerGetAxis(g_controller, SDL_CONTROLLER_AXIS_LEFTX);
         s16 ly = SDL_GameControllerGetAxis(g_controller, SDL_CONTROLLER_AXIS_LEFTY);
-        if (abs(lx) > stick_dz) {
-            int sx = lx >> 8;
-            if (sx > 127) sx = 127; else if (sx < -128) sx = -128;
-            stickX = (s8)sx;
-        }
-        if (abs(ly) > stick_dz) {
-            int sy = -(ly >> 8);
-            if (sy > 127) sy = 127; else if (sy < -128) sy = -128;
-            stickY = (s8)sy;
-        }
-
         s16 rx = SDL_GameControllerGetAxis(g_controller, SDL_CONTROLLER_AXIS_RIGHTX);
         s16 ry = SDL_GameControllerGetAxis(g_controller, SDL_CONTROLLER_AXIS_RIGHTY);
-        if (abs(rx) > cstick_dz) {
-            int srx = rx >> 8;
-            if (srx > 127) srx = 127; else if (srx < -128) srx = -128;
-            cstickX = (s8)srx;
+
+        if (lx != 0 || ly != 0) {
+            stickX = analog_stick_value(lx, g_pc_settings.stick_deadzone,
+                                        g_pc_settings.stick_sensitivity, 0);
+            stickY = analog_stick_value(ly, g_pc_settings.stick_deadzone,
+                                        g_pc_settings.stick_sensitivity, 1);
         }
-        if (abs(ry) > cstick_dz) {
-            int sry = -(ry >> 8);
-            if (sry > 127) sry = 127; else if (sry < -128) sry = -128;
-            cstickY = (s8)sry;
+        if (rx != 0 || ry != 0) {
+            cstickX = analog_stick_value(rx, g_pc_settings.cstick_deadzone,
+                                         g_pc_settings.cstick_sensitivity, 0);
+            cstickY = analog_stick_value(ry, g_pc_settings.cstick_deadzone,
+                                         g_pc_settings.cstick_sensitivity, 1);
         }
 
         status[0].triggerLeft  = pad_trigger_value(pb->l);

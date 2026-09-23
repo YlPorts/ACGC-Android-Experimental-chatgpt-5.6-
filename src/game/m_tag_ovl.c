@@ -26,6 +26,9 @@
 #include "sys_matrix.h"
 #include "m_roll_lib.h"
 #include "m_house.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 static void mTG_mark_main_CLR(Submenu* submenu, const mSM_MenuInfo_c* menu_info);
 
@@ -52,6 +55,10 @@ typedef struct tag_word_s {
     u8 str[mTG_TAG_STR_LEN];
     mSM_MOVE_PROC move_proc;
 } mTG_tag_word_c;
+
+#ifdef TARGET_PC
+static void mTG_copy_localized(u8* dst, int dst_len, const char* text);
+#endif
 
 typedef struct tag_data_s {
     mTG_tag_word_c** words; /* array of words for each line */
@@ -591,7 +598,111 @@ static u8 mTG_tag_str_iidesuka[6] = "??????";
 static u8 mTG_tag_str_put_chk1[11] = "You'll lose";
 static u8 mTG_tag_str_put_chk2[12] = "that design.";
 
+#ifdef TARGET_PC
+static void mTG_apply_prompt_language(void) {
+    mTG_copy_localized(mTG_tag_str_suteruno, sizeof(mTG_tag_str_suteruno), pc_language_ui_lookup("prompt.throw_it_out", "Throw it out?"));
+    mTG_copy_localized(mTG_tag_str_put_chk1, sizeof(mTG_tag_str_put_chk1), pc_language_ui_lookup("prompt.youll_lose", "You'll lose"));
+    mTG_copy_localized(mTG_tag_str_put_chk2, sizeof(mTG_tag_str_put_chk2), pc_language_ui_lookup("prompt.that_design", "that design."));
+}
+#endif
+
 // clang-format off
+
+#ifdef TARGET_PC
+static void mTG_copy_localized(u8* dst, int dst_len, const char* text) {
+    int i = 0;
+    if (dst == NULL || dst_len <= 0) return;
+    while (i < dst_len && text != NULL && text[i] != '\0') {
+        dst[i] = (u8)text[i];
+        i++;
+    }
+    while (i < dst_len) dst[i++] = CHAR_SPACE;
+}
+
+static void mTG_localize_word(mTG_tag_word_c* word, const char* key, const char* fallback) {
+    mTG_copy_localized(word->str, mTG_TAG_STR_LEN,
+                       pc_language_ui_lookup(key, fallback));
+}
+
+static void mTG_apply_runtime_language(void) {
+    mTG_copy_localized(str_omikuji, sizeof(str_omikuji), pc_language_ui_lookup("tag.fortune", "fortune"));
+    mTG_copy_localized(str_happy_room, sizeof(str_happy_room), pc_language_ui_lookup("tag.hra", "the HRA"));
+    mTG_copy_localized(postoffice_str, sizeof(postoffice_str), pc_language_ui_lookup("tag.post_office", "the post office"));
+    mTG_copy_localized(mother_str, sizeof(mother_str), pc_language_ui_lookup("tag.home", "home"));
+    mTG_copy_localized(str_otodokemono, sizeof(str_otodokemono), pc_language_ui_lookup("tag.delivery_for", "Delivery for"));
+    mTG_copy_localized(str_otegami, sizeof(str_otegami), pc_language_ui_lookup("tag.letter_to", "Letter to"));
+    mTG_localize_word(&mTG_tag_word_akeru, "action.akeru", "Open");
+    mTG_localize_word(&mTG_tag_word_ageru, "action.ageru", "Give");
+    mTG_localize_word(&mTG_tag_word_itadaku, "action.itadaku", "Take it");
+    mTG_localize_word(&mTG_tag_word_dump_item, "action.dump_item", "Yes");
+    mTG_localize_word(&mTG_tag_word_field_sign, "action.field_sign", "Erect");
+    mTG_localize_word(&mTG_tag_word_dump_mail, "action.dump_mail", "Yes");
+    mTG_localize_word(&mTG_tag_word_sell, "action.sell", "Sell");
+    mTG_localize_word(&mTG_tag_word_sell_all, "action.sell_all", "Sell All");
+    mTG_localize_word(&mTG_tag_word_okuru, "action.okuru", "Send");
+    mTG_localize_word(&mTG_tag_word_kakinaosu, "action.kakinaosu", "Rewrite");
+    mTG_localize_word(&mTG_tag_word_kabeniharu, "action.kabeniharu", "Put on Wall");
+    mTG_localize_word(&mTG_tag_word_korewoireru, "action.korewoireru", "Put Away");
+    mTG_localize_word(&mTG_tag_word_zimenniueru, "action.zimenniueru", "Plant");
+    mTG_localize_word(&mTG_tag_word_zimennioku, "action.zimennioku", "Drop");
+    mTG_localize_word(&mTG_tag_word_suteru, "action.suteru", "Throw Away");
+    mTG_localize_word(&mTG_tag_word_tada, "action.tada", "Give Away");
+    mTG_localize_word(&mTG_tag_word_tukamu, "action.tukamu", "Grab");
+    mTG_localize_word(&mTG_tag_word_tegamiwokaku, "action.tegamiwokaku", "Write Letter");
+    mTG_localize_word(&mTG_tag_word_nedanwotukeru, "action.nedanwotukeru", "Set Price");
+    mTG_localize_word(&mTG_tag_word_present, "action.present", "Present");
+    mTG_localize_word(&mTG_tag_word_miserudake, "action.miserudake", "Display");
+    mTG_localize_word(&mTG_tag_word_yameru, "action.yameru", "Quit");
+    mTG_localize_word(&mTG_tag_word_heyanioku, "action.heyanioku", "Drop");
+    mTG_localize_word(&mTG_tag_word_yukanisiku, "action.yukanisiku", "Spread on Floor");
+    mTG_localize_word(&mTG_tag_word_yomu, "action.yomu", "Read");
+    mTG_localize_word(&mTG_tag_word_watasu, "action.watasu", "Give");
+    mTG_localize_word(&mTG_tag_word_okane, "action.okane", "Price:");
+    mTG_localize_word(&mTG_tag_word_beru, "action.beru", "Bells");
+    mTG_localize_word(&mTG_tag_word_osameru, "action.osameru", "Give");
+    mTG_localize_word(&mTG_tag_word_zenbutukamu, "action.zenbutukamu", "Grab All");
+    mTG_localize_word(&mTG_tag_word_1maitukamu, "action.1maitukamu", "Grab One");
+    mTG_localize_word(&mTG_tag_word_1tamatukamu, "action.1tamatukamu", "Grab");
+    mTG_localize_word(&mTG_tag_word_order, "action.order", "Order");
+    mTG_localize_word(&mTG_tag_word_zimenniumeru, "action.zimenniumeru", "Bury");
+    mTG_localize_word(&mTG_tag_word_nigasu, "action.nigasu", "Release");
+    mTG_localize_word(&mTG_tag_word_fly, "action.fly", "Let Go");
+    mTG_localize_word(&mTG_tag_word_akeru2, "action.akeru2", "Open");
+    mTG_localize_word(&mTG_tag_word_hai, "action.hai", "Yes");
+    mTG_localize_word(&mTG_tag_word_iie, "action.iie", "No");
+    mTG_localize_word(&mTG_tag_word_dump_mail_mark_conf, "action.dump_mail_mark_conf", "Throw All Away");
+    mTG_localize_word(&mTG_tag_word_dump_mail_mark_exe, "action.dump_mail_mark_exe", "Yes");
+    mTG_localize_word(&mTG_tag_word_mailbox_change_mail, "action.mailbox_change_mail", "Copy All");
+    mTG_localize_word(&mTG_tag_word_cpmail_change_mail, "action.cpmail_change_mail", "Swap");
+    mTG_localize_word(&mTG_tag_word_music_listen, "action.music_listen", "Listen");
+    mTG_localize_word(&mTG_tag_word_music_takeout, "action.music_takeout", "Take out");
+    mTG_localize_word(&mTG_tag_word_music_takeout_all, "action.music_takeout_all", "Take out all");
+    mTG_localize_word(&mTG_tag_word_hand_over_curator, "action.hand_over_curator", "Give");
+    mTG_localize_word(&mTG_tag_word_nw_select_this, "action.nw_select_this", "Use");
+    mTG_localize_word(&mTG_tag_word_nw_select_put, "action.nw_select_put", "Drop");
+    mTG_localize_word(&mTG_tag_word_nw_select_change, "action.nw_select_change", "Swap");
+    mTG_localize_word(&mTG_tag_word_nw_st_wear, "action.nw_st_wear", "Use on Clothes");
+    mTG_localize_word(&mTG_tag_word_nw_st_umbrella, "action.nw_st_umbrella", "Use on Umbrella");
+    mTG_localize_word(&mTG_tag_word_nw_cover, "action.nw_cover", "Use on Walls");
+    mTG_localize_word(&mTG_tag_word_nw_carpet, "action.nw_carpet", "Use on Floor");
+    mTG_localize_word(&mTG_tag_word_nw_catch, "action.nw_catch", "Grab");
+    mTG_localize_word(&mTG_tag_word_nw_mr_sel_stick, "action.nw_mr_sel_stick", "Use");
+    mTG_localize_word(&mTG_tag_word_nw_or_sel_stick, "action.nw_or_sel_stick", "Use");
+    mTG_localize_word(&mTG_tag_word_nw_sel_put, "action.nw_sel_put", "Drop");
+    mTG_localize_word(&mTG_tag_word_nw_put_umbrella, "action.nw_put_umbrella", "Drop as Umbrella");
+    mTG_localize_word(&mTG_tag_word_nw_put_wear, "action.nw_put_wear", "Drop as Clothes");
+    mTG_localize_word(&mTG_tag_word_nw_stk_pat_nrml, "action.nw_stk_pat_nrml", "Basic Paste");
+    mTG_localize_word(&mTG_tag_word_nw_stk_pat_turn, "action.nw_stk_pat_turn", "Mix it up");
+    mTG_localize_word(&mTG_tag_word_remove, "action.remove", "Remove");
+    mTG_localize_word(&mTG_tag_word_put_all, "action.put_all", "Drop All");
+    mTG_localize_word(&mTG_tag_word_put_chk, "action.put_chk", "That's Fine");
+    mTG_localize_word(&mTG_tag_word_never_mind, "action.never_mind", "Never mind");
+    mTG_localize_word(&mTG_tag_word_change_original, "action.change_original", "Swap");
+    mTG_localize_word(&mTG_tag_word_password_item, "action.password_item", "Give");
+
+}
+#endif
+
 static u8 mTG_catalog_str[][mCL_TAG_STR_SIZE] = {
     "Furniture ",
     "Wallpaper ",
@@ -603,6 +714,20 @@ static u8 mTG_catalog_str[][mCL_TAG_STR_SIZE] = {
     "Fossils   ",
     "Music     ",
 };
+
+#ifdef TARGET_PC
+static void mTG_apply_catalog_language(void) {
+    mTG_copy_localized(mTG_catalog_str[0], mCL_TAG_STR_SIZE, pc_language_ui_lookup("catalog.furniture", "Furniture"));
+    mTG_copy_localized(mTG_catalog_str[1], mCL_TAG_STR_SIZE, pc_language_ui_lookup("catalog.wallpaper", "Wallpaper"));
+    mTG_copy_localized(mTG_catalog_str[2], mCL_TAG_STR_SIZE, pc_language_ui_lookup("catalog.carpet", "Carpet"));
+    mTG_copy_localized(mTG_catalog_str[3], mCL_TAG_STR_SIZE, pc_language_ui_lookup("catalog.clothing", "Clothing"));
+    mTG_copy_localized(mTG_catalog_str[4], mCL_TAG_STR_SIZE, pc_language_ui_lookup("catalog.items", "Items"));
+    mTG_copy_localized(mTG_catalog_str[5], mCL_TAG_STR_SIZE, pc_language_ui_lookup("catalog.stationery", "Stationery"));
+    mTG_copy_localized(mTG_catalog_str[6], mCL_TAG_STR_SIZE, pc_language_ui_lookup("catalog.gyroids", "Gyroids"));
+    mTG_copy_localized(mTG_catalog_str[7], mCL_TAG_STR_SIZE, pc_language_ui_lookup("catalog.fossils", "Fossils"));
+    mTG_copy_localized(mTG_catalog_str[8], mCL_TAG_STR_SIZE, pc_language_ui_lookup("catalog.music", "Music"));
+}
+#endif
 // clang-format on
 
 static mTG_tag_word_c* mTG_field_default[] = {
@@ -2453,6 +2578,11 @@ static void mTG_init_tag_data_select_win_after_select(mTG_tag_c* tag, mTG_tag_c*
 }
 
 static void mTG_init_tag_data(Submenu* submenu, int table, int type, f32 base_x, f32 base_y, int idx_x, int idx_y) {
+#ifdef TARGET_PC
+    mTG_apply_runtime_language();
+    mTG_apply_catalog_language();
+    mTG_apply_prompt_language();
+#endif
     mTG_Ovl_c* tag_ovl = submenu->overlay->tag_ovl;
     mTG_tag_data_c* tag_data = &mTG_label_table[type];
     mTG_tag_c* tag = &tag_ovl->tags[tag_ovl->sel_tag_idx];

@@ -16,17 +16,13 @@
         <activity
             android:name=".LauncherActivity"
             android:exported="true"
-            android:screenOrientation="unspecified">
+            android:screenOrientation="sensorLandscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".ContentManagerActivity"
-            android:exported="false"
-            android:screenOrientation="unspecified" />
 
         <activity
             android:name=".GameActivity"

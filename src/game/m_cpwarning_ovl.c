@@ -4,6 +4,9 @@
 #include "sys_matrix.h"
 #include "m_common_data.h"
 #include "m_font.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 static mCW_Ovl_c cpwarning_ovl_data;
 
@@ -11,6 +14,16 @@ static u8 mCW_mes0[18] = "Do you want to let";
 static u8 mCW_mes1[27] = "anyone else see this diary?";
 static u8 mCW_yes_mes[3] = "Yes";
 static u8 mCW_no_mes[2] = "No";
+
+#ifdef TARGET_PC
+static void mCW_localize_text(void) {
+    pc_language_ui_copy(mCW_mes0, sizeof(mCW_mes0), "diary.share_question1", "Do you want to let");
+    pc_language_ui_copy(mCW_mes1, sizeof(mCW_mes1), "diary.share_question2", "anyone else see this diary?");
+    pc_language_ui_copy(mCW_yes_mes, sizeof(mCW_yes_mes), "common.yes", "Yes");
+    pc_language_ui_copy(mCW_no_mes, sizeof(mCW_no_mes), "common.no", "No");
+}
+#endif
+
 
 enum {
     mCW_MOVE_OUT,

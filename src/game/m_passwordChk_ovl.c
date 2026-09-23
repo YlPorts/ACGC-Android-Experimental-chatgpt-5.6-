@@ -1,4 +1,7 @@
 #include "m_passwordChk_ovl.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 #include "audio.h"
 #include "libultra/libultra.h"
@@ -79,6 +82,9 @@ static void mPC_set_frame_dl(Submenu* submenu, GRAPH* graph, f32 x, f32 y) {
 
 static void mPC_set_character(Submenu* submenu, GAME* game, f32 x, f32 y) {
   static u8 title_str[20] = "Enter a secret code.";
+#ifdef TARGET_PC
+  pc_language_ui_copy(title_str, sizeof(title_str), "password.enter_secret", "Enter a secret code.");
+#endif
   static f32 cursol_baseX[mPC_LINE_COUNT] = { 77.0f, 77.0f };
   static f32 cursol_baseY[mPC_LINE_COUNT] = { 81.0f, 99.0f };
 

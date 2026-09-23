@@ -1,8 +1,10 @@
 #include "pc_settings_menu.h"
 #include "pc_settings.h"
+#include "pc_android_bridge.h"
 #include "pc_keybindings.h"
 #include "pc_menu_util.h"
 #include "pc_text_draw.h"
+#include "pc_language.h"
 
 #include "graph.h"
 #include "m_font.h"
@@ -19,16 +21,32 @@ enum {
     ITEM_VSYNC,
     ITEM_MAX_FPS,
     ITEM_MSAA,
+    ITEM_ASPECT,
     ITEM_RES,
     ITEM_TEXTURES,
     ITEM_RESETTI,
     ITEM_SHOP_VISITOR,
     ITEM_BORDERLESS_ACRES,
     ITEM_NES_ASPECT,
+    ITEM_LANGUAGE,
     ITEM_MASTER_VOLUME,
     ITEM_STICK_DEADZONE,
     ITEM_CSTICK_DEADZONE,
     ITEM_BINDINGS,
+    ITEM_TEXTURE_PACK,
+    ITEM_STICK_SENSITIVITY,
+    ITEM_CSTICK_SENSITIVITY,
+    ITEM_TOUCH_VISIBLE,
+    ITEM_TOUCH_OPACITY,
+    ITEM_TOUCH_SCALE,
+    ITEM_TOUCH_HIDE_GAMEPAD,
+    ITEM_TOUCH_EDIT,
+    ITEM_TOUCH_RESET,
+    ITEM_ANDROID_SYNC,
+    ITEM_ANDROID_RELOAD,
+    ITEM_ANDROID_CHANGE_FOLDER,
+    ITEM_ANDROID_RESTART,
+    ITEM_ANDROID_EXIT,
 };
 
 /* Per-item static metadata. restart=1 appends " *" and folds into the
@@ -39,6 +57,50 @@ typedef struct {
     int         restart;
 } Item;
 
+#ifdef TARGET_ANDROID
+static const Item tab_video_items[] = {
+    { "Formato",      ITEM_ASPECT,       0 },
+    { "VSync",        ITEM_VSYNC,        0 },
+    { "FPS maximos",  ITEM_MAX_FPS,      0 },
+    { "Calidad",      ITEM_MSAA,         1 },
+    { "Texturas",     ITEM_TEXTURE_PACK, 1 },
+};
+
+static const Item tab_audio_items[] = {
+    { "Volumen", ITEM_MASTER_VOLUME, 0 },
+};
+
+static const Item tab_stick_items[] = {
+    { "Sensibilidad",   ITEM_STICK_SENSITIVITY,  0 },
+    { "Zona muerta",    ITEM_STICK_DEADZONE,     0 },
+    { "Sensib. C-stick",ITEM_CSTICK_SENSITIVITY, 0 },
+    { "Zona muerta C",  ITEM_CSTICK_DEADZONE,    0 },
+};
+
+static const Item tab_touch_items[] = {
+    { "Controles tactiles", ITEM_TOUCH_VISIBLE,       0 },
+    { "Opacidad",           ITEM_TOUCH_OPACITY,       0 },
+    { "Tamano",             ITEM_TOUCH_SCALE,         0 },
+    { "Ocultar con mando",  ITEM_TOUCH_HIDE_GAMEPAD,  0 },
+    { "Editar posiciones",  ITEM_TOUCH_EDIT,          0 },
+    { "Restablecer",        ITEM_TOUCH_RESET,         0 },
+};
+
+static const Item tab_gameplay_items[] = {
+    { "Idioma",        ITEM_LANGUAGE,     1 },
+    { "Resetti",       ITEM_RESETTI,      0 },
+    { "Mejora tienda", ITEM_SHOP_VISITOR, 0 },
+    { "Pantalla NES",  ITEM_NES_ASPECT,   0 },
+};
+
+static const Item tab_system_items[] = {
+    { "Sincronizar datos", ITEM_ANDROID_SYNC,          0 },
+    { "Recargar contenido",ITEM_ANDROID_RELOAD,        0 },
+    { "Cambiar carpeta",   ITEM_ANDROID_CHANGE_FOLDER, 0 },
+    { "Reiniciar juego",   ITEM_ANDROID_RESTART,       0 },
+    { "Cerrar app",        ITEM_ANDROID_EXIT,          0 },
+};
+#else
 static const Item tab_video_items[] = {
     { "Display",    ITEM_DISPLAY,  0 },
     { "VSync",      ITEM_VSYNC,    0 },
@@ -49,9 +111,10 @@ static const Item tab_video_items[] = {
 };
 
 static const Item tab_gameplay_items[] = {
+    { "Language",         ITEM_LANGUAGE,         1 },
     { "Resetti",          ITEM_RESETTI,          0 },
     { "Shop upgrade",     ITEM_SHOP_VISITOR,     0 },
-    { "Borderless acres", ITEM_BORDERLESS_ACRES, 0 },
+    { "Borderless Acres", ITEM_BORDERLESS_ACRES, 0 },
     { "NES aspect",       ITEM_NES_ASPECT,       0 },
 };
 
@@ -60,10 +123,13 @@ static const Item tab_audio_items[] = {
 };
 
 static const Item tab_controls_items[] = {
-    { "Stick deadzone",   ITEM_STICK_DEADZONE,  0 },
-    { "C-stick deadzone", ITEM_CSTICK_DEADZONE, 0 },
-    { "Keybindings",      ITEM_BINDINGS,        0 },
+    { "Stick sensitivity",   ITEM_STICK_SENSITIVITY,  0 },
+    { "Stick deadzone",      ITEM_STICK_DEADZONE,     0 },
+    { "C-stick sensitivity", ITEM_CSTICK_SENSITIVITY, 0 },
+    { "C-stick deadzone",    ITEM_CSTICK_DEADZONE,    0 },
+    { "Keybindings",         ITEM_BINDINGS,           0 },
 };
+#endif
 
 typedef struct {
     const char* name;
@@ -73,12 +139,66 @@ typedef struct {
 
 #define TAB_ITEMS(a) (a), (int)(sizeof(a) / sizeof((a)[0]))
 static const Tab s_tabs[] = {
+#ifdef TARGET_ANDROID
+    { "Video",   TAB_ITEMS(tab_video_items) },
+    { "Audio",   TAB_ITEMS(tab_audio_items) },
+    { "Mando",   TAB_ITEMS(tab_stick_items) },
+    { "Tactil",  TAB_ITEMS(tab_touch_items) },
+    { "Juego",   TAB_ITEMS(tab_gameplay_items) },
+    { "Sistema", TAB_ITEMS(tab_system_items) },
+#else
     { "Video",    TAB_ITEMS(tab_video_items) },
     { "Audio",    TAB_ITEMS(tab_audio_items) },
     { "Controls", TAB_ITEMS(tab_controls_items) },
     { "Gameplay", TAB_ITEMS(tab_gameplay_items) },
+#endif
 };
 #define TAB_COUNT ((int)(sizeof(s_tabs) / sizeof(s_tabs[0])))
+
+#ifdef TARGET_ANDROID
+static const char* localized_item_label(int id, const char* fallback) {
+    switch (id) {
+        case ITEM_ASPECT: return pc_language_ui_lookup("settings.aspect", "Aspect");
+        case ITEM_VSYNC: return "VSync";
+        case ITEM_MAX_FPS: return pc_language_ui_lookup("settings.max_fps", "Max FPS");
+        case ITEM_MSAA: return pc_language_ui_lookup("settings.quality", "Quality");
+        case ITEM_TEXTURE_PACK: return pc_language_ui_lookup("settings.textures", "Textures");
+        case ITEM_MASTER_VOLUME: return pc_language_ui_lookup("settings.volume", "Volume");
+        case ITEM_STICK_SENSITIVITY: return pc_language_ui_lookup("settings.stick_sensitivity", "Sensitivity");
+        case ITEM_STICK_DEADZONE: return pc_language_ui_lookup("settings.stick_deadzone", "Deadzone");
+        case ITEM_CSTICK_SENSITIVITY: return pc_language_ui_lookup("settings.cstick_sensitivity", "C-stick sensitivity");
+        case ITEM_CSTICK_DEADZONE: return pc_language_ui_lookup("settings.cstick_deadzone", "C-stick deadzone");
+        case ITEM_TOUCH_VISIBLE: return pc_language_ui_lookup("settings.touch_controls", "Touch controls");
+        case ITEM_TOUCH_OPACITY: return pc_language_ui_lookup("settings.opacity", "Opacity");
+        case ITEM_TOUCH_SCALE: return pc_language_ui_lookup("settings.size", "Size");
+        case ITEM_TOUCH_HIDE_GAMEPAD: return pc_language_ui_lookup("settings.hide_with_gamepad", "Hide with gamepad");
+        case ITEM_TOUCH_EDIT: return pc_language_ui_lookup("settings.edit_positions", "Edit positions");
+        case ITEM_TOUCH_RESET: return pc_language_ui_lookup("settings.reset", "Reset");
+        case ITEM_LANGUAGE: return pc_language_ui_lookup("settings.language", "Language");
+        case ITEM_RESETTI: return "Resetti";
+        case ITEM_SHOP_VISITOR: return pc_language_ui_lookup("settings.shop_upgrade", "Shop upgrade");
+        case ITEM_NES_ASPECT: return pc_language_ui_lookup("settings.nes_display", "NES display");
+        case ITEM_ANDROID_SYNC: return pc_language_ui_lookup("settings.sync_data", "Sync data");
+        case ITEM_ANDROID_RELOAD: return pc_language_ui_lookup("settings.reload_content", "Reload content");
+        case ITEM_ANDROID_CHANGE_FOLDER: return pc_language_ui_lookup("settings.change_folder", "Change folder");
+        case ITEM_ANDROID_RESTART: return pc_language_ui_lookup("settings.restart_game", "Restart game");
+        case ITEM_ANDROID_EXIT: return pc_language_ui_lookup("settings.close_app", "Close app");
+        default: return fallback;
+    }
+}
+
+static const char* localized_tab_name(int tab, const char* fallback) {
+    switch (tab) {
+        case 0: return "Video";
+        case 1: return "Audio";
+        case 2: return pc_language_ui_lookup("settings.tab_controller", "Controller");
+        case 3: return pc_language_ui_lookup("settings.tab_touch", "Touch");
+        case 4: return pc_language_ui_lookup("settings.tab_game", "Game");
+        case 5: return pc_language_ui_lookup("settings.tab_system", "System");
+        default: return fallback;
+    }
+}
+#endif
 
 /* --- Sub-pages --- */
 typedef enum {
@@ -144,6 +264,23 @@ static const BindRow s_bind_rows[] = {
 #define BIND_VISIBLE      9
 #define BIND_IDX_DEFAULTS BIND_ROW_COUNT
 #define BIND_IDX_BACK     (BIND_ROW_COUNT + 1)
+
+static const char* localized_bind_label(const char* label) {
+    if (label == NULL) return "";
+    if (strcmp(label, "Stick Up") == 0) return pc_language_ui_lookup("bindings.stick_up", label);
+    if (strcmp(label, "Stick Down") == 0) return pc_language_ui_lookup("bindings.stick_down", label);
+    if (strcmp(label, "Stick Left") == 0) return pc_language_ui_lookup("bindings.stick_left", label);
+    if (strcmp(label, "Stick Right") == 0) return pc_language_ui_lookup("bindings.stick_right", label);
+    if (strcmp(label, "C-Stick Up") == 0) return pc_language_ui_lookup("bindings.cstick_up", label);
+    if (strcmp(label, "C-Stick Down") == 0) return pc_language_ui_lookup("bindings.cstick_down", label);
+    if (strcmp(label, "C-Stick Left") == 0) return pc_language_ui_lookup("bindings.cstick_left", label);
+    if (strcmp(label, "C-Stick Right") == 0) return pc_language_ui_lookup("bindings.cstick_right", label);
+    if (strcmp(label, "D-Pad Up") == 0) return pc_language_ui_lookup("bindings.dpad_up", label);
+    if (strcmp(label, "D-Pad Down") == 0) return pc_language_ui_lookup("bindings.dpad_down", label);
+    if (strcmp(label, "D-Pad Left") == 0) return pc_language_ui_lookup("bindings.dpad_left", label);
+    if (strcmp(label, "D-Pad Right") == 0) return pc_language_ui_lookup("bindings.dpad_right", label);
+    return label;
+}
 
 static int s_bind_sel = 0;
 static int s_bind_col = 0;      /* 0 = keyboard, 1 = gamepad */
@@ -245,16 +382,25 @@ static void recompute_dirty(void) {
         (s_pending.vsync            != g_pc_settings.vsync) ||
         (s_pending.max_fps          != g_pc_settings.max_fps) ||
         (s_pending.msaa             != g_pc_settings.msaa) ||
+        (s_pending.aspect_ratio     != g_pc_settings.aspect_ratio) ||
         (s_pending.window_width     != g_pc_settings.window_width) ||
         (s_pending.window_height    != g_pc_settings.window_height) ||
         (s_pending.preload_textures != g_pc_settings.preload_textures) ||
+        (s_pending.texture_pack_enabled != g_pc_settings.texture_pack_enabled) ||
         (s_pending.disable_resetti  != g_pc_settings.disable_resetti) ||
         (s_pending.disable_shop_visitor_req != g_pc_settings.disable_shop_visitor_req) ||
         (s_pending.borderless_acres != g_pc_settings.borderless_acres) ||
         (s_pending.nes_aspect       != g_pc_settings.nes_aspect) ||
+        (strcmp(s_pending.language, g_pc_settings.language) != 0) ||
         (s_pending.master_volume    != g_pc_settings.master_volume) ||
         (s_pending.stick_deadzone   != g_pc_settings.stick_deadzone) ||
-        (s_pending.cstick_deadzone  != g_pc_settings.cstick_deadzone);
+        (s_pending.stick_sensitivity != g_pc_settings.stick_sensitivity) ||
+        (s_pending.cstick_deadzone  != g_pc_settings.cstick_deadzone) ||
+        (s_pending.cstick_sensitivity != g_pc_settings.cstick_sensitivity) ||
+        (s_pending.touch_controls_visible != g_pc_settings.touch_controls_visible) ||
+        (s_pending.touch_opacity != g_pc_settings.touch_opacity) ||
+        (s_pending.touch_scale != g_pc_settings.touch_scale) ||
+        (s_pending.touch_hide_with_gamepad != g_pc_settings.touch_hide_with_gamepad);
 }
 
 static void snapshot(void) {
@@ -275,7 +421,11 @@ static void item_cycle(int id, int dir) {
             s_pending.vsync = !s_pending.vsync;
             break;
         case ITEM_MAX_FPS: {
+#ifdef TARGET_ANDROID
+            static const int steps[] = { 60, 90, 120 };
+#else
             static const int steps[] = { 0, 60, 120, 180, 240, 300, 360 };
+#endif
             int idx = 0;
             int count = sizeof(steps) / sizeof(steps[0]);
             for (int i = 0; i < count; i++) if (s_pending.max_fps == steps[i]) { idx = i; break; }
@@ -283,11 +433,20 @@ static void item_cycle(int id, int dir) {
             s_pending.max_fps = steps[idx];
         } break;
         case ITEM_MSAA: {
+#ifdef TARGET_ANDROID
+            static const int steps[] = { 0, 2 };
+#else
             static const int steps[] = { 0, 2, 4, 8 };
+#endif
             int idx = 0;
-            for (int i = 0; i < 4; i++) if (s_pending.msaa == steps[i]) { idx = i; break; }
-            idx = (idx + (dir > 0 ? 1 : 3)) % 4;
+            int count = sizeof(steps) / sizeof(steps[0]);
+            for (int i = 0; i < count; i++) if (s_pending.msaa == steps[i]) { idx = i; break; }
+            idx = (idx + (dir > 0 ? 1 : count - 1)) % count;
             s_pending.msaa = steps[idx];
+        } break;
+        case ITEM_ASPECT: {
+            int v = s_pending.aspect_ratio + (dir > 0 ? 1 : 2);
+            s_pending.aspect_ratio = v % 3;
         } break;
         case ITEM_RES:
             pc_settings_cycle_resolution(&s_pending.window_width, &s_pending.window_height, dir);
@@ -310,6 +469,16 @@ static void item_cycle(int id, int dir) {
         case ITEM_NES_ASPECT:
             s_pending.nes_aspect = !s_pending.nes_aspect;
             break;
+        case ITEM_LANGUAGE: {
+            static const char* codes[] = { "en", "es", "fr", "de", "it" };
+            int current = 0;
+            int count = (int)(sizeof(codes) / sizeof(codes[0]));
+            for (int i = 0; i < count; i++) {
+                if (strcmp(s_pending.language, codes[i]) == 0) { current = i; break; }
+            }
+            current = (current + (dir > 0 ? 1 : count - 1)) % count;
+            strcpy(s_pending.language, codes[current]);
+        } break;
         case ITEM_MASTER_VOLUME: {
             int v = s_pending.master_volume + (dir > 0 ? 10 : -10);
             if (v < 0)   v = 0;
@@ -328,6 +497,51 @@ static void item_cycle(int id, int dir) {
             if (v > 40) v = 40;
             s_pending.cstick_deadzone = v;
         } break;
+        case ITEM_STICK_SENSITIVITY: {
+            int v = s_pending.stick_sensitivity + (dir > 0 ? 10 : -10);
+            if (v < 50) v = 50;
+            if (v > 150) v = 150;
+            s_pending.stick_sensitivity = v;
+        } break;
+        case ITEM_CSTICK_SENSITIVITY: {
+            int v = s_pending.cstick_sensitivity + (dir > 0 ? 10 : -10);
+            if (v < 50) v = 50;
+            if (v > 150) v = 150;
+            s_pending.cstick_sensitivity = v;
+        } break;
+        case ITEM_TEXTURE_PACK:
+            s_pending.texture_pack_enabled = !s_pending.texture_pack_enabled;
+            break;
+        case ITEM_TOUCH_VISIBLE:
+            s_pending.touch_controls_visible = !s_pending.touch_controls_visible;
+            break;
+        case ITEM_TOUCH_OPACITY: {
+            static const int steps[] = { 25, 50, 75, 100 };
+            int idx = 0;
+            int count = (int)(sizeof(steps) / sizeof(steps[0]));
+            for (int i = 0; i < count; i++) if (s_pending.touch_opacity == steps[i]) { idx = i; break; }
+            idx = (idx + (dir > 0 ? 1 : count - 1)) % count;
+            s_pending.touch_opacity = steps[idx];
+        } break;
+        case ITEM_TOUCH_SCALE: {
+            static const int steps[] = { 75, 100, 125, 150 };
+            int idx = 0;
+            int count = (int)(sizeof(steps) / sizeof(steps[0]));
+            for (int i = 0; i < count; i++) if (s_pending.touch_scale == steps[i]) { idx = i; break; }
+            idx = (idx + (dir > 0 ? 1 : count - 1)) % count;
+            s_pending.touch_scale = steps[idx];
+        } break;
+        case ITEM_TOUCH_HIDE_GAMEPAD:
+            s_pending.touch_hide_with_gamepad = !s_pending.touch_hide_with_gamepad;
+            break;
+        case ITEM_TOUCH_EDIT:
+        case ITEM_TOUCH_RESET:
+        case ITEM_ANDROID_SYNC:
+        case ITEM_ANDROID_RELOAD:
+        case ITEM_ANDROID_CHANGE_FOLDER:
+        case ITEM_ANDROID_RESTART:
+        case ITEM_ANDROID_EXIT:
+            break;
         case ITEM_BINDINGS:
             /* opened via confirm, left/right does nothing */
             break;
@@ -339,43 +553,62 @@ static void item_format(int id, char* buf, size_t n) {
     switch (id) {
         case ITEM_DISPLAY:
             snprintf(buf, n, "%s",
-                s_pending.fullscreen == 0 ? "< Windowed >" :
-                s_pending.fullscreen == 1 ? "< Fullscreen >" :
-                                            "< Borderless >");
+                s_pending.fullscreen == 0 ? pc_language_ui_lookup("settings.value.windowed", "< Windowed >") :
+                s_pending.fullscreen == 1 ? pc_language_ui_lookup("settings.value.fullscreen", "< Fullscreen >") :
+                                            pc_language_ui_lookup("settings.value.borderless", "< Borderless >"));
             break;
         case ITEM_VSYNC:
-            snprintf(buf, n, "%s", s_pending.vsync ? "< On >" : "< Off >");
+            snprintf(buf, n, "%s", s_pending.vsync ? pc_language_ui_lookup("settings.value.yes", "< Yes >") : pc_language_ui_lookup("settings.value.no", "< No >"));
             break;
         case ITEM_MAX_FPS:
             if (s_pending.max_fps > 0) snprintf(buf, n, "< %d >", s_pending.max_fps);
-            else                       snprintf(buf, n, "< Uncapped >");
+            else                       snprintf(buf, n, "%s", pc_language_ui_lookup("settings.value.uncapped", "< Uncapped >"));
             break;
         case ITEM_MSAA:
+#ifdef TARGET_ANDROID
+            snprintf(buf, n, "%s",
+                s_pending.msaa == 0 ? pc_language_ui_lookup("settings.value.normal", "< Normal >") : pc_language_ui_lookup("settings.value.high2x", "< High 2x >"));
+#else
             if (s_pending.msaa > 0) snprintf(buf, n, "< %dx >", s_pending.msaa);
-            else                    snprintf(buf, n, "< Off >");
+            else                    snprintf(buf, n, "%s", pc_language_ui_lookup("settings.value.off", "< Off >"));
+#endif
+            break;
+        case ITEM_ASPECT:
+            snprintf(buf, n, "%s",
+                s_pending.aspect_ratio == 0 ? "< 4:3 >" :
+                s_pending.aspect_ratio == 1 ? "< 16:9 >" :
+                                              "< 21:9 >");
             break;
         case ITEM_RES:
             snprintf(buf, n, "< %dx%d >", s_pending.window_width, s_pending.window_height);
             break;
         case ITEM_TEXTURES:
             snprintf(buf, n, "%s",
-                s_pending.preload_textures == 0 ? "< On Demand >" :
-                s_pending.preload_textures == 1 ? "< Preload >"   :
-                                                  "< Preload&Cache >");
+                s_pending.preload_textures == 0 ? pc_language_ui_lookup("settings.value.on_demand", "< On Demand >") :
+                s_pending.preload_textures == 1 ? pc_language_ui_lookup("settings.value.preload", "< Preload >")   :
+                                                  pc_language_ui_lookup("settings.value.preload_cache", "< Preload&Cache >"));
             break;
         case ITEM_RESETTI:
             /* disable_resetti flips the polarity - show the user-facing side. */
-            snprintf(buf, n, "%s", s_pending.disable_resetti ? "< Disabled >" : "< Enabled >");
+            snprintf(buf, n, "%s", s_pending.disable_resetti ? pc_language_ui_lookup("settings.value.no", "< No >") : pc_language_ui_lookup("settings.value.yes", "< Yes >"));
             break;
         case ITEM_SHOP_VISITOR:
             /* disable_shop_visitor_req flips the polarity - show the user-facing side. */
-            snprintf(buf, n, "%s", s_pending.disable_shop_visitor_req ? "< Singleplayer >" : "< Multiplayer >");
+            snprintf(buf, n, "%s", s_pending.disable_shop_visitor_req ? pc_language_ui_lookup("settings.value.no_visit", "< No visit >") : pc_language_ui_lookup("settings.value.original", "< Original >"));
             break;
         case ITEM_BORDERLESS_ACRES:
-            snprintf(buf, n, "%s", s_pending.borderless_acres ? "< On >" : "< Off >");
+            snprintf(buf, n, "%s", s_pending.borderless_acres ? pc_language_ui_lookup("settings.value.on", "< On >") : pc_language_ui_lookup("settings.value.off", "< Off >"));
             break;
         case ITEM_NES_ASPECT:
-            snprintf(buf, n, "%s", s_pending.nes_aspect ? "< 4:3 >" : "< Stretch >");
+            snprintf(buf, n, "%s", s_pending.nes_aspect ? "< 4:3 >" : pc_language_ui_lookup("settings.value.stretched", "< Stretched >"));
+            break;
+        case ITEM_LANGUAGE:
+            if (strcmp(s_pending.language, "en") == 0) snprintf(buf, n, "< English >");
+            else if (strcmp(s_pending.language, "es") == 0) snprintf(buf, n, "< Espanol >");
+            else if (strcmp(s_pending.language, "fr") == 0) snprintf(buf, n, "< Francais >");
+            else if (strcmp(s_pending.language, "de") == 0) snprintf(buf, n, "< Deutsch >");
+            else if (strcmp(s_pending.language, "it") == 0) snprintf(buf, n, "< Italiano >");
+            else snprintf(buf, n, "< %s >", s_pending.language);
             break;
         case ITEM_MASTER_VOLUME:
             snprintf(buf, n, "< %d%% >", s_pending.master_volume);
@@ -385,6 +618,36 @@ static void item_format(int id, char* buf, size_t n) {
             break;
         case ITEM_CSTICK_DEADZONE:
             snprintf(buf, n, "< %d%% >", s_pending.cstick_deadzone);
+            break;
+        case ITEM_STICK_SENSITIVITY:
+            snprintf(buf, n, "< %d%% >", s_pending.stick_sensitivity);
+            break;
+        case ITEM_CSTICK_SENSITIVITY:
+            snprintf(buf, n, "< %d%% >", s_pending.cstick_sensitivity);
+            break;
+        case ITEM_TEXTURE_PACK:
+            snprintf(buf, n, "%s", s_pending.texture_pack_enabled ? pc_language_ui_lookup("settings.value.yes", "< Yes >") : pc_language_ui_lookup("settings.value.no", "< No >"));
+            break;
+        case ITEM_TOUCH_VISIBLE:
+            snprintf(buf, n, "%s", s_pending.touch_controls_visible ? pc_language_ui_lookup("settings.value.show", "< Show >") : pc_language_ui_lookup("settings.value.hide", "< Hide >"));
+            break;
+        case ITEM_TOUCH_OPACITY:
+            snprintf(buf, n, "< %d%% >", s_pending.touch_opacity);
+            break;
+        case ITEM_TOUCH_SCALE:
+            snprintf(buf, n, "< %d%% >", s_pending.touch_scale);
+            break;
+        case ITEM_TOUCH_HIDE_GAMEPAD:
+            snprintf(buf, n, "%s", s_pending.touch_hide_with_gamepad ? pc_language_ui_lookup("settings.value.yes", "< Yes >") : pc_language_ui_lookup("settings.value.no", "< No >"));
+            break;
+        case ITEM_TOUCH_EDIT:
+        case ITEM_TOUCH_RESET:
+        case ITEM_ANDROID_SYNC:
+        case ITEM_ANDROID_RELOAD:
+        case ITEM_ANDROID_CHANGE_FOLDER:
+        case ITEM_ANDROID_RESTART:
+        case ITEM_ANDROID_EXIT:
+            snprintf(buf, n, "Ejecutar");
             break;
         case ITEM_BINDINGS:
             snprintf(buf, n, "Edit...");
@@ -401,6 +664,7 @@ static int item_changed(int id) {
         case ITEM_VSYNC:      return s_pending.vsync            != g_pc_settings.vsync;
         case ITEM_MAX_FPS:    return s_pending.max_fps          != g_pc_settings.max_fps;
         case ITEM_MSAA:       return s_pending.msaa             != g_pc_settings.msaa;
+        case ITEM_ASPECT:     return s_pending.aspect_ratio     != g_pc_settings.aspect_ratio;
         case ITEM_RES:        return (s_pending.window_width  != g_pc_settings.window_width) ||
                                      (s_pending.window_height != g_pc_settings.window_height);
         case ITEM_TEXTURES:   return s_pending.preload_textures != g_pc_settings.preload_textures;
@@ -408,10 +672,25 @@ static int item_changed(int id) {
         case ITEM_SHOP_VISITOR: return s_pending.disable_shop_visitor_req != g_pc_settings.disable_shop_visitor_req;
         case ITEM_BORDERLESS_ACRES: return s_pending.borderless_acres != g_pc_settings.borderless_acres;
         case ITEM_NES_ASPECT:    return s_pending.nes_aspect    != g_pc_settings.nes_aspect;
+        case ITEM_LANGUAGE:      return strcmp(s_pending.language, g_pc_settings.language) != 0;
         case ITEM_MASTER_VOLUME: return s_pending.master_volume != g_pc_settings.master_volume;
         case ITEM_STICK_DEADZONE:  return s_pending.stick_deadzone  != g_pc_settings.stick_deadzone;
+        case ITEM_STICK_SENSITIVITY: return s_pending.stick_sensitivity != g_pc_settings.stick_sensitivity;
         case ITEM_CSTICK_DEADZONE: return s_pending.cstick_deadzone != g_pc_settings.cstick_deadzone;
-        case ITEM_BINDINGS:      return 0; /* bindings save themselves */
+        case ITEM_CSTICK_SENSITIVITY: return s_pending.cstick_sensitivity != g_pc_settings.cstick_sensitivity;
+        case ITEM_TEXTURE_PACK: return s_pending.texture_pack_enabled != g_pc_settings.texture_pack_enabled;
+        case ITEM_TOUCH_VISIBLE: return s_pending.touch_controls_visible != g_pc_settings.touch_controls_visible;
+        case ITEM_TOUCH_OPACITY: return s_pending.touch_opacity != g_pc_settings.touch_opacity;
+        case ITEM_TOUCH_SCALE: return s_pending.touch_scale != g_pc_settings.touch_scale;
+        case ITEM_TOUCH_HIDE_GAMEPAD: return s_pending.touch_hide_with_gamepad != g_pc_settings.touch_hide_with_gamepad;
+        case ITEM_TOUCH_EDIT:
+        case ITEM_TOUCH_RESET:
+        case ITEM_ANDROID_SYNC:
+        case ITEM_ANDROID_RELOAD:
+        case ITEM_ANDROID_CHANGE_FOLDER:
+        case ITEM_ANDROID_RESTART:
+        case ITEM_ANDROID_EXIT:
+        case ITEM_BINDINGS:      return 0; /* actions/bindings save themselves */
     }
     return 0;
 }
@@ -421,8 +700,10 @@ static int item_changed(int id) {
  * the "restart required" banner should show. */
 static int item_differs_from_startup(int id) {
     switch (id) {
-        case ITEM_MSAA:     return g_pc_settings.msaa             != s_startup.msaa;
-        case ITEM_TEXTURES: return g_pc_settings.preload_textures != s_startup.preload_textures;
+        case ITEM_MSAA:         return g_pc_settings.msaa != s_startup.msaa;
+        case ITEM_TEXTURES:     return g_pc_settings.preload_textures != s_startup.preload_textures;
+        case ITEM_TEXTURE_PACK: return g_pc_settings.texture_pack_enabled != s_startup.texture_pack_enabled;
+        case ITEM_LANGUAGE:     return strcmp(g_pc_settings.language, s_startup.language) != 0;
     }
     return 0;
 }
@@ -482,8 +763,19 @@ static void apply_pending(void) {
         s_res_old_h = g_pc_settings.window_height;
     }
 
+    int touch_changed =
+        (s_pending.touch_controls_visible != g_pc_settings.touch_controls_visible) ||
+        (s_pending.touch_opacity != g_pc_settings.touch_opacity) ||
+        (s_pending.touch_scale != g_pc_settings.touch_scale) ||
+        (s_pending.touch_hide_with_gamepad != g_pc_settings.touch_hide_with_gamepad) ||
+        (s_pending.stick_deadzone != g_pc_settings.stick_deadzone) ||
+        (s_pending.stick_sensitivity != g_pc_settings.stick_sensitivity) ||
+        (s_pending.cstick_deadzone != g_pc_settings.cstick_deadzone) ||
+        (s_pending.cstick_sensitivity != g_pc_settings.cstick_sensitivity);
+
     g_pc_settings = s_pending;
     pc_settings_apply();
+    if (touch_changed) pc_android_request_action(PC_ANDROID_ACTION_APPLY_TOUCH);
     s_pending_dirty = 0;
     recompute_restart_needed();
 
@@ -497,6 +789,47 @@ static void apply_pending(void) {
         printf("[SETTINGS] applied\n");
     }
 }
+
+#ifdef TARGET_ANDROID
+static int item_is_android_action(int id) {
+    return id == ITEM_TOUCH_EDIT || id == ITEM_TOUCH_RESET ||
+           id == ITEM_ANDROID_SYNC || id == ITEM_ANDROID_RELOAD ||
+           id == ITEM_ANDROID_CHANGE_FOLDER || id == ITEM_ANDROID_RESTART ||
+           id == ITEM_ANDROID_EXIT;
+}
+
+static void activate_android_action(int id) {
+    /* Leaving or editing from this page should never discard pending values. */
+    if (s_pending_dirty) apply_pending();
+
+    switch (id) {
+        case ITEM_TOUCH_EDIT:
+            pc_android_request_action(PC_ANDROID_ACTION_EDIT_CONTROLS);
+            break;
+        case ITEM_TOUCH_RESET:
+            pc_android_request_action(PC_ANDROID_ACTION_RESET_CONTROLS);
+            break;
+        case ITEM_ANDROID_SYNC:
+            pc_android_request_action(PC_ANDROID_ACTION_SYNC_DATA);
+            break;
+        case ITEM_ANDROID_RELOAD:
+            pc_android_request_action(PC_ANDROID_ACTION_RELOAD_CONTENT);
+            break;
+        case ITEM_ANDROID_CHANGE_FOLDER:
+            pc_android_request_action(PC_ANDROID_ACTION_CHANGE_FOLDER);
+            break;
+        case ITEM_ANDROID_RESTART:
+            pc_android_request_action(PC_ANDROID_ACTION_RESTART_GAME);
+            break;
+        case ITEM_ANDROID_EXIT:
+            pc_android_request_action(PC_ANDROID_ACTION_CLOSE_APP);
+            break;
+    }
+}
+#else
+static int item_is_android_action(int id) { (void)id; return 0; }
+static void activate_android_action(int id) { (void)id; }
+#endif
 
 /* =========================================================================
  * Public API
@@ -581,7 +914,8 @@ static int nav_horizontal(int dir) {
         if (dir < 0) { if (s_tab > 0) s_tab--; }
         else         { if (s_tab < TAB_COUNT - 1) s_tab++; }
     } else if (s_sel < cur_item_count()) {
-        item_cycle(s_tabs[s_tab].items[s_sel].id, dir);
+        int id = s_tabs[s_tab].items[s_sel].id;
+        if (!item_is_android_action(id)) item_cycle(id, dir);
     }
     return 1;
 }
@@ -622,7 +956,8 @@ int pc_settings_menu_confirm(void) {
     } else if (s_sel < cur_item_count()) {
         int id = s_tabs[s_tab].items[s_sel].id;
         if (id == ITEM_BINDINGS) bind_enter_page();
-        else                     item_cycle(id, +1);
+        else if (item_is_android_action(id)) activate_android_action(id);
+        else item_cycle(id, +1);
     } else if (s_sel == idx_apply()) {
         apply_pending();
     } else if (s_sel == idx_back()) {
@@ -762,16 +1097,28 @@ static void draw_tab_row(struct game_s* game, f32 y) {
     /* Pre-measure widths and total horizontal extent so we can centre. */
     int widths[TAB_COUNT];
     int total = 0;
+#ifdef TARGET_ANDROID
+    const int gap_px = 7;
+#else
     const int gap_px = 18;
+#endif
     for (int t = 0; t < TAB_COUNT; t++) {
+        #ifdef TARGET_ANDROID
+        widths[t] = pc_text_width(localized_tab_name(t, s_tabs[t].name));
+#else
         widths[t] = pc_text_width(s_tabs[t].name);
+#endif
         total += widths[t];
     }
     total += gap_px * (TAB_COUNT - 1);
 
     f32 x = (SCREEN_WIDTH_F - (f32)total) * 0.5f;
     for (int t = 0; t < TAB_COUNT; t++) {
+        #ifdef TARGET_ANDROID
+        const char* name = localized_tab_name(t, s_tabs[t].name);
+#else
         const char* name = s_tabs[t].name;
+#endif
         int active = (t == s_tab);
         int r, g, b, a;
         if (active && on_tab_row) { r = 255; g = 235; b = 120; a = 255; }
@@ -795,7 +1142,8 @@ static void draw_settings_page(struct game_s* game) {
     f32 y0    = 78.0f;
     f32 line_h = 16.0f;
 
-    pc_menu_draw_centered(game, "- Settings -", 30.0f, 255, 255, 255, 255, 1.0f);
+    pc_menu_draw_centered(game, pc_language_ui_lookup("settings.title", "- Settings -"),
+                          30.0f, 255, 255, 255, 255, 1.0f);
     draw_tab_row(game, y_tab);
 
     const Tab* tab = &s_tabs[s_tab];
@@ -811,7 +1159,7 @@ static void draw_settings_page(struct game_s* game) {
 
         f32 s = selected ? PC_MENU_SCALE_SELECTED : 1.0f;
         pc_menu_row_colors(selected, &r, &g, &b, &a);
-        pc_menu_draw_left(game, it->label, lx, y, r, g, b, a, s);
+        pc_menu_draw_left(game, localized_item_label(it->id, it->label), lx, y, r, g, b, a, s);
         value_colors(selected, changed, &r, &g, &b, &a);
         pc_menu_draw_left(game, value_buf, vx, y, r, g, b, a, s);
     }
@@ -835,20 +1183,20 @@ static void draw_settings_page(struct game_s* game) {
     } else {
         r = 120; g = 120; b = 120; a = 160;
     }
-    pc_menu_draw_centered(game, "Apply", apy, r, g, b, a,
+    pc_menu_draw_centered(game, pc_language_ui_lookup("settings.apply", "Apply"), apy, r, g, b, a,
                           sel_apply ? PC_MENU_SCALE_SELECTED : 1.0f);
 
     /* Back */
     f32 bky = apy + line_h;
     int sel_back = (s_sel == idx_back());
     pc_menu_row_colors(sel_back, &r, &g, &b, &a);
-    pc_menu_draw_centered(game, "Back", bky, r, g, b, a,
+    pc_menu_draw_centered(game, pc_language_ui_lookup("settings.back", "Back"), bky, r, g, b, a,
                           sel_back ? PC_MENU_SCALE_SELECTED : 1.0f);
 
     /* Restart banner stays up until the process actually restarts (survives
      * reopening the menu). Sits below Back so it never competes with the cursor. */
     if (s_pending_restart) {
-        pc_menu_draw_centered(game, "Restart the game to apply all changes",
+        pc_menu_draw_centered(game, pc_language_ui_lookup("settings.restart_to_apply", "Restart to apply"),
                               bky + line_h + 6.0f, 255, 195, 85, 230, 1.0f);
     }
 }
@@ -856,7 +1204,7 @@ static void draw_settings_page(struct game_s* game) {
 static void draw_res_confirm_page(struct game_s* game) {
     char buf[48];
 
-    pc_menu_draw_centered(game, "- Keep this resolution? -", 70.0f, 255, 255, 255, 255, 1.0f);
+    pc_menu_draw_centered(game, pc_language_ui_lookup("settings.keep_resolution", "- Keep this resolution? -"), 70.0f, 255, 255, 255, 255, 1.0f);
 
     snprintf(buf, sizeof(buf), "%dx%d",
              g_pc_settings.window_width, g_pc_settings.window_height);
@@ -865,19 +1213,19 @@ static void draw_res_confirm_page(struct game_s* game) {
     Uint32 now = SDL_GetTicks();
     Uint32 ms_left = (now < s_res_deadline) ? s_res_deadline - now : 0;
     int secs = (int)((ms_left + 999) / 1000);
-    snprintf(buf, sizeof(buf), "Reverting in %d...", secs);
+    snprintf(buf, sizeof(buf), pc_language_ui_lookup("settings.reverting_in_fmt", "Reverting in %d..."), secs);
     pc_menu_draw_centered(game, buf, 125.0f, 230, 200, 110, 255, 1.0f);
 
-    pc_menu_draw_two_choice(game, "Keep", "Revert", s_res_sel, 160.0f);
+    pc_menu_draw_two_choice(game, pc_language_ui_lookup("settings.keep", "Keep"), pc_language_ui_lookup("settings.revert", "Revert"), s_res_sel, 160.0f);
 }
 
 /* Discard-changes confirmation shown when the user tries to Back out
  * while s_pending_dirty. No auto-timer (the user must pick). */
 static void draw_back_confirm_page(struct game_s* game) {
-    pc_menu_draw_centered(game, "- Discard changes? -", 80.0f, 255, 255, 255, 255, 1.0f);
-    pc_menu_draw_centered(game, "You have unapplied changes.",
+    pc_menu_draw_centered(game, pc_language_ui_lookup("settings.discard_changes", "- Discard changes? -"), 80.0f, 255, 255, 255, 255, 1.0f);
+    pc_menu_draw_centered(game, pc_language_ui_lookup("settings.unapplied_changes", "You have unapplied changes."),
                           115.0f, 230, 230, 230, 255, 1.0f);
-    pc_menu_draw_two_choice(game, "Keep editing", "Discard", s_back_sel, 160.0f);
+    pc_menu_draw_two_choice(game, pc_language_ui_lookup("settings.keep_editing", "Keep editing"), pc_language_ui_lookup("settings.discard", "Discard"), s_back_sel, 160.0f);
 }
 
 /* Keyboard/gamepad columns for every remappable action, with scrolling.
@@ -887,11 +1235,11 @@ static void draw_bindings_page(struct game_s* game) {
     f32 lx = 36.0f, kx = 128.0f, px = 232.0f;
     f32 y0 = 62.0f, line_h = 13.0f;
 
-    pc_menu_draw_centered(game, "- Keybindings -", 28.0f, 255, 255, 255, 255, 1.0f);
+    pc_menu_draw_centered(game, pc_language_ui_lookup("bindings.title", "- Keybindings -"), 28.0f, 255, 255, 255, 255, 1.0f);
 
-    pc_menu_draw_left(game, "Action",   lx, 46.0f, 150, 150, 150, 200, 1.0f);
-    pc_menu_draw_left(game, "Keyboard", kx, 46.0f, 150, 150, 150, 200, 1.0f);
-    pc_menu_draw_left(game, "Gamepad",  px, 46.0f, 150, 150, 150, 200, 1.0f);
+    pc_menu_draw_left(game, pc_language_ui_lookup("bindings.action", "Action"), lx, 46.0f, 150, 150, 150, 200, 1.0f);
+    pc_menu_draw_left(game, pc_language_ui_lookup("bindings.keyboard", "Keyboard"), kx, 46.0f, 150, 150, 150, 200, 1.0f);
+    pc_menu_draw_left(game, pc_language_ui_lookup("bindings.gamepad", "Gamepad"), px, 46.0f, 150, 150, 150, 200, 1.0f);
 
     for (int i = 0; i < BIND_VISIBLE; i++) {
         int row = s_bind_scroll + i;
@@ -902,7 +1250,7 @@ static void draw_bindings_page(struct game_s* game) {
         char buf[48];
 
         pc_menu_row_colors(row_sel, &r, &g, &b, &a);
-        pc_menu_draw_left(game, br->label, lx, y, r, g, b, a, 1.0f);
+        pc_menu_draw_left(game, localized_bind_label(br->label), lx, y, r, g, b, a, 1.0f);
 
         /* Only game-charset ASCII renders (see glyph_ok), so the selected
          * cell is marked with <...> instead of brackets. */
@@ -951,24 +1299,24 @@ static void draw_bindings_page(struct game_s* game) {
     {
         int sel_def = (s_bind_sel == BIND_IDX_DEFAULTS);
         pc_menu_row_colors(sel_def, &r, &g, &b, &a);
-        pc_menu_draw_centered(game, "Restore Defaults", 186.0f, r, g, b, a,
+        pc_menu_draw_centered(game, pc_language_ui_lookup("bindings.restore_defaults", "Restore Defaults"), 186.0f, r, g, b, a,
                               sel_def ? PC_MENU_SCALE_SELECTED : 1.0f);
     }
     {
         int sel_back = (s_bind_sel == BIND_IDX_BACK);
         pc_menu_row_colors(sel_back, &r, &g, &b, &a);
-        pc_menu_draw_centered(game, "Back", 200.0f, r, g, b, a,
+        pc_menu_draw_centered(game, pc_language_ui_lookup("settings.back", "Back"), 200.0f, r, g, b, a,
                               sel_back ? PC_MENU_SCALE_SELECTED : 1.0f);
     }
 
     /* hint line */
     if (s_capture) {
         pc_menu_draw_centered(game,
-            s_bind_col == 0 ? "Press a key or mouse button (Esc cancels)"
-                            : "Press a controller button (Del clears, Esc cancels)",
+            s_bind_col == 0 ? pc_language_ui_lookup("bindings.press_key", "Press a key or mouse button (Esc cancels)")
+                            : pc_language_ui_lookup("bindings.press_controller", "Press a controller button (Del clears, Esc cancels)"),
             218.0f, 255, 195, 85, 230, 1.0f);
     } else if (s_bind_sel < BIND_ROW_COUNT) {
-        pc_menu_draw_centered(game, "Confirm to rebind", 218.0f, 150, 150, 150, 180, 1.0f);
+        pc_menu_draw_centered(game, pc_language_ui_lookup("bindings.confirm_rebind", "Confirm to rebind"), 218.0f, 150, 150, 150, 180, 1.0f);
     }
 }
 

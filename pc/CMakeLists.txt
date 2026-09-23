@@ -40,10 +40,12 @@ add_compile_definitions(
     BUGFIXES        # Fix OOB reads in letter scoring tables (m_mail_check_ovl.c).
     _LANGUAGE_C    # Required for N64 GBI/ultratypes headers
     PC_ENHANCEMENTS   # Optional visual improvements (MSAA, etc). Remove to get pure PC port.
-    KEYBOARD_TYPING   # Physical keyboard typing in text editor. Remove for platforms without keyboards.
 )
 if(ANDROID)
     add_compile_definitions(TARGET_ANDROID)
+else()
+    # Physical keyboard entry and the desktop keybinding editor are PC-only.
+    add_compile_definitions(KEYBOARD_TYPING)
 endif()
 
 # Common compiler flags (applied to all sources). GCC is required:
@@ -298,6 +300,9 @@ set(PC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_model_viewer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_texture_pack.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_settings.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_language.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_language_graphics.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_android_bridge.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_profiler.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_pause_menu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_settings_menu.c

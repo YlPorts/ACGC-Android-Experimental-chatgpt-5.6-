@@ -4,27 +4,51 @@
 #include "m_player_lib.h"
 #include "ac_birth_control.h"
 
+#include <ctype.h>
+
+#ifdef TARGET_ANDROID
+#define PC_DEFAULT_MSAA 0
+#define PC_DEFAULT_ASPECT 1
+#define PC_DEFAULT_MSAA_TEXT "0"
+#define PC_DEFAULT_ASPECT_TEXT "1"
+#else
+#define PC_DEFAULT_MSAA 4
+#define PC_DEFAULT_ASPECT 3
+#define PC_DEFAULT_MSAA_TEXT "4"
+#define PC_DEFAULT_ASPECT_TEXT "3"
+#endif
+
 PCSettings g_pc_settings = {
     .window_width  = PC_SCREEN_WIDTH,
     .window_height = PC_SCREEN_HEIGHT,
     .fullscreen    = 0,
     .vsync         = 0,
     .max_fps       = 60,
-    .msaa          = 4,
+    .msaa          = PC_DEFAULT_MSAA,
+    .aspect_ratio  = PC_DEFAULT_ASPECT,
     .preload_textures = 0,
+    .texture_pack_enabled = 1,
     .disable_resetti = 0,
     .disable_shop_visitor_req = 0,
     .borderless_acres = 1,
     .nes_aspect = 1,
     .master_volume = 100,
     .stick_deadzone = 12,
+    .stick_sensitivity = 100,
     .cstick_deadzone = 12,
+    .cstick_sensitivity = 100,
+    .touch_controls_visible = 1,
+    .touch_opacity = 75,
+    .touch_scale = 100,
+    .touch_hide_with_gamepad = 0,
+    .language = "en",
 };
 
 static const char* SETTINGS_FILE = "settings.ini";
 
 static const char* DEFAULT_SETTINGS =
     "[Graphics]\n"
+#ifndef TARGET_ANDROID
     "# Window size (ignored in fullscreen)\n"
     "window_width = 640\n"
     "window_height = 480\n"
@@ -32,19 +56,40 @@ static const char* DEFAULT_SETTINGS =
     "# 0 = windowed, 1 = fullscreen, 2 = borderless fullscreen\n"
     "fullscreen = 0\n"
     "\n"
+#endif
     "# Vertical sync: 0 = off, 1 = on\n"
     "vsync = 0\n"
     "\n"
+#ifdef TARGET_ANDROID
+    "# Max FPS: 60, 90, or 120\n"
+#else
     "# Max FPS: 60, 120, 240, or 0 for uncapped\n"
+#endif
     "max_fps = 60\n"
     "\n"
+#ifdef TARGET_ANDROID
+    "# Image quality / anti-aliasing: 0 = normal, 2 = high\n"
+#else
     "# Anti-aliasing samples: 0 = off, 2, 4, or 8\n"
-    "msaa = 4\n"
+#endif
+    "msaa = " PC_DEFAULT_MSAA_TEXT "\n"
     "\n"
+#ifdef TARGET_ANDROID
+    "# Game image aspect: 0 = 4:3, 1 = 16:9, 2 = 21:9\n"
+#else
+    "# Game image aspect: 0 = 4:3, 1 = 16:9, 2 = 21:9, 3 = automatic\n"
+#endif
+    "aspect_ratio = " PC_DEFAULT_ASPECT_TEXT "\n"
+    "\n"
+    "# Custom texture replacements: 0 = original, 1 = enabled\n"
+    "texture_pack_enabled = 1\n"
+    "\n"
+#ifndef TARGET_ANDROID
     "[Enhancements]\n"
     "# Preload HD textures at startup: 0 = off (load on demand), 1 = preload, 2 = preload + cache file (fastest)\n"
     "preload_textures = 0\n"
     "\n"
+#endif
     "[Gameplay]\n"
     "# Disable Mr. Resetti: 0 = normal, 1 = disable\n"
     "disable_resetti = 0\n"
@@ -52,9 +97,11 @@ static const char* DEFAULT_SETTINGS =
     "# Shop upgrade visitor requirement (Nookington's needs a shopper from another town): 0 = required, 1 = not required\n"
     "disable_shop_visitor_req = 0\n"
     "\n"
+#ifndef TARGET_ANDROID
     "# Borderless acres: 0 = original acre transitions (faster, draws less), 1 = continuous movement/camera\n"
     "borderless_acres = 1\n"
     "\n"
+#endif
     "# NES emulator aspect ratio: 0 = stretch to fullscreen, 1 = 4:3 pillarbox\n"
     "nes_aspect = 1\n"
     "\n"
@@ -63,9 +110,24 @@ static const char* DEFAULT_SETTINGS =
     "master_volume = 100\n"
     "\n"
     "[Input]\n"
-    "# Gamepad stick deadzones as a percentage (0-40)\n"
+    "# Stick deadzones (0-40) and sensitivity (50-150 percent)\n"
     "stick_deadzone = 12\n"
-    "cstick_deadzone = 12\n";
+    "stick_sensitivity = 100\n"
+    "cstick_deadzone = 12\n"
+    "cstick_sensitivity = 100\n"
+#ifdef TARGET_ANDROID
+    "\n"
+    "[Touch]\n"
+    "touch_controls_visible = 1\n"
+    "touch_opacity = 75\n"
+    "touch_scale = 100\n"
+    "touch_hide_with_gamepad = 0\n"
+#endif
+    "\n"
+    "[Language]\n"
+    "# en = original ROM text; other codes load languages/<code>/aram\n"
+    "language = en\n"
+    ;
 
 static const char* skip_ws(const char* s) {
     while (*s == ' ' || *s == '\t') s++;
@@ -98,8 +160,12 @@ static void apply_setting(const char* key, const char* value) {
     } else if (strcmp(key, "msaa") == 0) {
         if (val == 0 || val == 2 || val == 4 || val == 8)
             g_pc_settings.msaa = val;
+    } else if (strcmp(key, "aspect_ratio") == 0) {
+        if (val >= 0 && val <= 3) g_pc_settings.aspect_ratio = val;
     } else if (strcmp(key, "preload_textures") == 0) {
         if (val >= 0 && val <= 2) g_pc_settings.preload_textures = val;
+    } else if (strcmp(key, "texture_pack_enabled") == 0) {
+        if (val == 0 || val == 1) g_pc_settings.texture_pack_enabled = val;
     } else if (strcmp(key, "disable_resetti") == 0) {
         if (val == 0 || val == 1) g_pc_settings.disable_resetti = val;
     } else if (strcmp(key, "disable_shop_visitor_req") == 0) {
@@ -112,8 +178,32 @@ static void apply_setting(const char* key, const char* value) {
         if (val >= 0 && val <= 100) g_pc_settings.master_volume = val;
     } else if (strcmp(key, "stick_deadzone") == 0) {
         if (val >= 0 && val <= 40) g_pc_settings.stick_deadzone = val;
+    } else if (strcmp(key, "stick_sensitivity") == 0) {
+        if (val >= 50 && val <= 150) g_pc_settings.stick_sensitivity = val;
     } else if (strcmp(key, "cstick_deadzone") == 0) {
         if (val >= 0 && val <= 40) g_pc_settings.cstick_deadzone = val;
+    } else if (strcmp(key, "cstick_sensitivity") == 0) {
+        if (val >= 50 && val <= 150) g_pc_settings.cstick_sensitivity = val;
+    } else if (strcmp(key, "touch_controls_visible") == 0) {
+        if (val == 0 || val == 1) g_pc_settings.touch_controls_visible = val;
+    } else if (strcmp(key, "touch_opacity") == 0) {
+        if (val >= 25 && val <= 100) g_pc_settings.touch_opacity = val;
+    } else if (strcmp(key, "touch_scale") == 0) {
+        if (val >= 75 && val <= 150) g_pc_settings.touch_scale = val;
+    } else if (strcmp(key, "touch_hide_with_gamepad") == 0) {
+        if (val == 0 || val == 1) g_pc_settings.touch_hide_with_gamepad = val;
+    } else if (strcmp(key, "language") == 0) {
+        size_t i;
+        size_t len = strlen(value);
+        int valid = len > 0 && len < sizeof(g_pc_settings.language);
+        for (i = 0; valid && i < len; i++) {
+            unsigned char c = (unsigned char)value[i];
+            if (!(isalnum(c) || c == '-' || c == '_')) valid = 0;
+        }
+        if (valid) {
+            strncpy(g_pc_settings.language, value, sizeof(g_pc_settings.language) - 1);
+            g_pc_settings.language[sizeof(g_pc_settings.language) - 1] = '\0';
+        }
     }
 }
 
@@ -143,6 +233,44 @@ static void apply_borderless_acres_setting(void) {
     g_mPlib_wade_disabled = enabled;
 }
 
+static void sanitize_platform_settings(void) {
+#ifdef TARGET_ANDROID
+    /* These desktop values may exist in a settings.ini copied from PC, but
+     * Android owns the surface size and always runs borderless landscape. */
+    g_pc_settings.fullscreen = 0;
+    g_pc_settings.window_width = PC_SCREEN_WIDTH;
+    g_pc_settings.window_height = PC_SCREEN_HEIGHT;
+    if (g_pc_settings.aspect_ratio < 0 || g_pc_settings.aspect_ratio > 2)
+        g_pc_settings.aspect_ratio = 1;
+    if (g_pc_settings.msaa != 0 && g_pc_settings.msaa != 2) g_pc_settings.msaa = 0;
+    /* The port uses delta time for simulation. Restrict mobile choices to
+     * tested targets; VSync may still cap these to the panel refresh rate. */
+    if (g_pc_settings.max_fps != 60 && g_pc_settings.max_fps != 90 &&
+        g_pc_settings.max_fps != 120) {
+        g_pc_settings.max_fps = 60;
+    }
+    /* On-demand replacement is safer in a 32-bit address space. */
+    g_pc_settings.preload_textures = 0;
+    if (g_pc_settings.texture_pack_enabled != 0) g_pc_settings.texture_pack_enabled = 1;
+    /* Preserve the original acre-transition behavior on mobile. */
+    g_pc_settings.borderless_acres = 0;
+    if (g_pc_settings.stick_deadzone < 0 || g_pc_settings.stick_deadzone > 40)
+        g_pc_settings.stick_deadzone = 12;
+    if (g_pc_settings.cstick_deadzone < 0 || g_pc_settings.cstick_deadzone > 40)
+        g_pc_settings.cstick_deadzone = 12;
+    if (g_pc_settings.stick_sensitivity < 50 || g_pc_settings.stick_sensitivity > 150)
+        g_pc_settings.stick_sensitivity = 100;
+    if (g_pc_settings.cstick_sensitivity < 50 || g_pc_settings.cstick_sensitivity > 150)
+        g_pc_settings.cstick_sensitivity = 100;
+    if (g_pc_settings.touch_controls_visible != 0) g_pc_settings.touch_controls_visible = 1;
+    if (g_pc_settings.touch_opacity < 25 || g_pc_settings.touch_opacity > 100)
+        g_pc_settings.touch_opacity = 75;
+    if (g_pc_settings.touch_scale < 75 || g_pc_settings.touch_scale > 150)
+        g_pc_settings.touch_scale = 100;
+    if (g_pc_settings.touch_hide_with_gamepad != 0) g_pc_settings.touch_hide_with_gamepad = 1;
+#endif
+}
+
 static void write_defaults(const char* path) {
     FILE* f = fopen(path, "w");
     if (f) {
@@ -158,6 +286,7 @@ void pc_settings_save(void) {
         return;
     }
     fprintf(f, "[Graphics]\n");
+#ifndef TARGET_ANDROID
     fprintf(f, "# Window size (ignored in fullscreen)\n");
     fprintf(f, "window_width = %d\n", g_pc_settings.window_width);
     fprintf(f, "window_height = %d\n", g_pc_settings.window_height);
@@ -165,19 +294,40 @@ void pc_settings_save(void) {
     fprintf(f, "# 0 = windowed, 1 = fullscreen, 2 = borderless fullscreen\n");
     fprintf(f, "fullscreen = %d\n", g_pc_settings.fullscreen);
     fprintf(f, "\n");
+#endif
     fprintf(f, "# Vertical sync: 0 = off, 1 = on\n");
     fprintf(f, "vsync = %d\n", g_pc_settings.vsync);
     fprintf(f, "\n");
+#ifdef TARGET_ANDROID
+    fprintf(f, "# Max FPS: 60, 90, or 120\n");
+#else
     fprintf(f, "# Max FPS: 60, 120, 240, or 0 for uncapped\n");
+#endif
     fprintf(f, "max_fps = %d\n", g_pc_settings.max_fps);
     fprintf(f, "\n");
+#ifdef TARGET_ANDROID
+    fprintf(f, "# Image quality / anti-aliasing: 0 = normal, 2 = high\n");
+#else
     fprintf(f, "# Anti-aliasing samples: 0 = off, 2, 4, or 8\n");
+#endif
     fprintf(f, "msaa = %d\n", g_pc_settings.msaa);
     fprintf(f, "\n");
+#ifdef TARGET_ANDROID
+    fprintf(f, "# Game image aspect: 0 = 4:3, 1 = 16:9, 2 = 21:9\n");
+#else
+    fprintf(f, "# Game image aspect: 0 = 4:3, 1 = 16:9, 2 = 21:9, 3 = automatic\n");
+#endif
+    fprintf(f, "aspect_ratio = %d\n", g_pc_settings.aspect_ratio);
+    fprintf(f, "\n");
+    fprintf(f, "# Custom texture replacements: 0 = original, 1 = enabled\n");
+    fprintf(f, "texture_pack_enabled = %d\n", g_pc_settings.texture_pack_enabled);
+    fprintf(f, "\n");
+#ifndef TARGET_ANDROID
     fprintf(f, "[Enhancements]\n");
     fprintf(f, "# Preload HD textures at startup: 0 = off (load on demand), 1 = preload, 2 = preload + cache file (fastest)\n");
     fprintf(f, "preload_textures = %d\n", g_pc_settings.preload_textures);
     fprintf(f, "\n");
+#endif
     fprintf(f, "[Gameplay]\n");
     fprintf(f, "# Disable Mr. Resetti: 0 = normal, 1 = disable\n");
     fprintf(f, "disable_resetti = %d\n", g_pc_settings.disable_resetti);
@@ -185,9 +335,11 @@ void pc_settings_save(void) {
     fprintf(f, "# Shop upgrade visitor requirement (Nookington's needs a shopper from another town): 0 = required, 1 = not required\n");
     fprintf(f, "disable_shop_visitor_req = %d\n", g_pc_settings.disable_shop_visitor_req);
     fprintf(f, "\n");
+#ifndef TARGET_ANDROID
     fprintf(f, "# Borderless acres: 0 = original acre transitions (faster, draws less), 1 = continuous movement/camera\n");
     fprintf(f, "borderless_acres = %d\n", g_pc_settings.borderless_acres);
     fprintf(f, "\n");
+#endif
     fprintf(f, "# NES emulator aspect ratio: 0 = stretch to fullscreen, 1 = 4:3 pillarbox\n");
     fprintf(f, "nes_aspect = %d\n", g_pc_settings.nes_aspect);
     fprintf(f, "\n");
@@ -196,9 +348,21 @@ void pc_settings_save(void) {
     fprintf(f, "master_volume = %d\n", g_pc_settings.master_volume);
     fprintf(f, "\n");
     fprintf(f, "[Input]\n");
-    fprintf(f, "# Gamepad stick deadzones as a percentage (0-40)\n");
+    fprintf(f, "# Stick deadzones (0-40) and sensitivity (50-150 percent)\n");
     fprintf(f, "stick_deadzone = %d\n", g_pc_settings.stick_deadzone);
+    fprintf(f, "stick_sensitivity = %d\n", g_pc_settings.stick_sensitivity);
     fprintf(f, "cstick_deadzone = %d\n", g_pc_settings.cstick_deadzone);
+    fprintf(f, "cstick_sensitivity = %d\n", g_pc_settings.cstick_sensitivity);
+#ifdef TARGET_ANDROID
+    fprintf(f, "\n[Touch]\n");
+    fprintf(f, "touch_controls_visible = %d\n", g_pc_settings.touch_controls_visible);
+    fprintf(f, "touch_opacity = %d\n", g_pc_settings.touch_opacity);
+    fprintf(f, "touch_scale = %d\n", g_pc_settings.touch_scale);
+    fprintf(f, "touch_hide_with_gamepad = %d\n", g_pc_settings.touch_hide_with_gamepad);
+#endif
+    fprintf(f, "\n[Language]\n");
+    fprintf(f, "# en = original ROM text; other codes load languages/<code>/aram\n");
+    fprintf(f, "language = %s\n", g_pc_settings.language);
     fclose(f);
     printf("[Settings] Saved %s\n", SETTINGS_FILE);
 }
@@ -300,6 +464,7 @@ void pc_settings_apply(void) {
 
     if (!g_pc_window) return;
 
+#ifndef TARGET_ANDROID
     int w = g_pc_settings.window_width;
     int h = g_pc_settings.window_height;
 
@@ -339,19 +504,22 @@ void pc_settings_apply(void) {
             break;
         }
     }
+#endif
 
     SDL_GL_SetSwapInterval(g_pc_settings.vsync);
     pc_platform_update_window_size();
 
-    printf("[Settings] Applied: %dx%d fullscreen=%d vsync=%d max_fps=%d msaa=%d\n",
+    printf("[Settings] Applied: %dx%d fullscreen=%d aspect=%d vsync=%d max_fps=%d msaa=%d\n",
            g_pc_settings.window_width, g_pc_settings.window_height,
-           g_pc_settings.fullscreen, g_pc_settings.vsync, g_pc_settings.max_fps, g_pc_settings.msaa);
+           g_pc_settings.fullscreen, g_pc_settings.aspect_ratio, g_pc_settings.vsync,
+           g_pc_settings.max_fps, g_pc_settings.msaa);
 }
 
 void pc_settings_load(void) {
     FILE* f = fopen(SETTINGS_FILE, "r");
     if (!f) {
         write_defaults(SETTINGS_FILE);
+        sanitize_platform_settings();
         apply_frame_limit_setting();
         apply_borderless_acres_setting();
         printf("[Settings] Created default %s\n", SETTINGS_FILE);
@@ -378,11 +546,13 @@ void pc_settings_load(void) {
         }
     }
     fclose(f);
+    sanitize_platform_settings();
     apply_frame_limit_setting();
     apply_borderless_acres_setting();
 
-    printf("[Settings] Loaded %s: %dx%d fullscreen=%d vsync=%d max_fps=%d msaa=%d preload_textures=%d borderless_acres=%d\n",
+    printf("[Settings] Loaded %s: %dx%d fullscreen=%d aspect=%d vsync=%d max_fps=%d msaa=%d preload_textures=%d borderless_acres=%d\n",
            SETTINGS_FILE, g_pc_settings.window_width, g_pc_settings.window_height,
-           g_pc_settings.fullscreen, g_pc_settings.vsync, g_pc_settings.max_fps, g_pc_settings.msaa,
+           g_pc_settings.fullscreen, g_pc_settings.aspect_ratio, g_pc_settings.vsync,
+           g_pc_settings.max_fps, g_pc_settings.msaa,
            g_pc_settings.preload_textures, g_pc_settings.borderless_acres);
 }

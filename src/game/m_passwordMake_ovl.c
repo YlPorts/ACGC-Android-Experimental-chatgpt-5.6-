@@ -1,4 +1,7 @@
 #include "m_passwordMake_ovl.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 #include "audio.h"
 #include "libultra/libultra.h"
@@ -115,6 +118,9 @@ static void mPM_set_character(Submenu* submenu, GAME* game, int sel_idx, f32 x, 
   };
 
   static u8 title_str[17] = "Enter a receiver.";
+#ifdef TARGET_PC
+  pc_language_ui_copy(title_str, sizeof(title_str), "password.enter_receiver", "Enter a receiver.");
+#endif
   static f32 cursol_baseX[mPM_ENTRY_NUM] = { 136.0f, 136.0f };
   static f32 cursol_baseY[mPM_ENTRY_NUM] = { 68.0f, 96.0f };
 

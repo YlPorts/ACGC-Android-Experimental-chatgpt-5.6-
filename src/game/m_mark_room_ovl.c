@@ -1,4 +1,8 @@
 #include "m_mark_room.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#include <stdio.h>
+#endif
 
 #include "m_item_name.h"
 #include "m_name_table.h"
@@ -2745,22 +2749,42 @@ static int mMkRm_letter_no_table[64] = { 52, 53, 54, 55, 56,  57, 58, 59, -1, -1
                                          66, 67, 68, 69, 544, 70, 71, 72, -1, -1, -1, -1, -1, -1, -1, -1 };
 
 static void mMkRm_GetSeriesName(u8* buf, int series) {
-    if (series < 0) {
+    if (series < 0 || series >= mMkRm_SERIES_NUM) {
         return;
     }
 
-    if (series >= mMkRm_SERIES_NUM) {
-        return;
-    }
+#ifdef TARGET_PC
+    {
+        char fallback[mIN_ITEM_NAME_LEN + 1];
+        char key[48];
+        const char* localized;
+        int i;
+        int end = mIN_ITEM_NAME_LEN;
 
+        for (i = 0; i < mIN_ITEM_NAME_LEN; i++) fallback[i] = (char)mMkRm_series_name[series][i];
+        fallback[mIN_ITEM_NAME_LEN] = '\0';
+        while (end > 0 && fallback[end - 1] == ' ') fallback[--end] = '\0';
+
+        snprintf(key, sizeof(key), "series.%s", fallback);
+        localized = pc_language_ui_lookup(key, fallback);
+
+        for (i = 0; i < mIN_ITEM_NAME_LEN; i++) {
+            if (localized != NULL && localized[i] != '\0') {
+                *buf++ = (u8)localized[i];
+            } else {
+                *buf++ = CHAR_SPACE;
+                while (++i < mIN_ITEM_NAME_LEN) *buf++ = CHAR_SPACE;
+                break;
+            }
+        }
+    }
+#else
     {
         const u8* src = mMkRm_series_name[series];
         int i;
-
-        for (i = 0; i < mIN_ITEM_NAME_LEN; i++) {
-            *buf++ = *src++;
-        }
+        for (i = 0; i < mIN_ITEM_NAME_LEN; i++) *buf++ = *src++;
     }
+#endif
 }
 
 static mActor_name_t mMkRm_GetRemainOneFtr(int idx, int series) {

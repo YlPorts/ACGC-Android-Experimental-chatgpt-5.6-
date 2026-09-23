@@ -6,6 +6,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <unistd.h>
 #include "types.h"
 #include "pc_disc.h"
 
@@ -35,6 +36,8 @@ typedef struct {
 /* ---- global state ---- */
 static DiscFile g_disc;
 static int g_disc_open = 0;
+static char g_disc_override[512];
+static int g_disc_override_fd = -1;
 
 /* DOL info */
 static u32 g_dol_offset = 0;
@@ -51,11 +54,11 @@ static FSTFile g_fst_files[MAX_FST_FILES];
 static int g_fst_file_count = 0;
 
 /* ---- disc I/O ---- */
-static int disc_open(DiscFile* df, const char* path) {
+static int disc_open_stream(DiscFile* df, FILE* fp) {
     u8 hdr[CISO_HDR_SIZE];
 
     memset(df, 0, sizeof(*df));
-    df->fp = fopen(path, "rb");
+    df->fp = fp;
     if (!df->fp) return 0;
 
     /* try CISO */
@@ -66,6 +69,11 @@ static int disc_open(DiscFile* df, const char* path) {
             int i, phys = 0;
             df->num_blocks = CISO_HDR_SIZE - CISO_MAP_OFF;
             df->block_phys = (int*)malloc(df->num_blocks * sizeof(int));
+            if (!df->block_phys) {
+                fclose(df->fp);
+                memset(df, 0, sizeof(*df));
+                return 0;
+            }
             for (i = 0; i < df->num_blocks; i++)
                 df->block_phys[i] = hdr[CISO_MAP_OFF + i] ? phys++ : -1;
             df->is_ciso = 1;
@@ -74,8 +82,38 @@ static int disc_open(DiscFile* df, const char* path) {
     }
 
     /* plain ISO/GCM */
+    clearerr(df->fp);
+    if (fseek(df->fp, 0, SEEK_SET) != 0) {
+        fclose(df->fp);
+        memset(df, 0, sizeof(*df));
+        return 0;
+    }
     df->is_ciso = 0;
     return 1;
+}
+
+static int disc_open_path(DiscFile* df, const char* path) {
+    return disc_open_stream(df, fopen(path, "rb"));
+}
+
+static int disc_open_fd(DiscFile* df, int borrowed_fd) {
+    int owned_fd;
+    FILE* fp;
+
+    if (borrowed_fd < 0) return 0;
+    owned_fd = dup(borrowed_fd);
+    if (owned_fd < 0) return 0;
+    if (lseek(owned_fd, 0, SEEK_SET) < 0) {
+        close(owned_fd);
+        return 0;
+    }
+
+    fp = fdopen(owned_fd, "rb");
+    if (!fp) {
+        close(owned_fd);
+        return 0;
+    }
+    return disc_open_stream(df, fp);
 }
 
 static void disc_close(DiscFile* df) {
@@ -287,6 +325,11 @@ static int str_ends_ci(const char* s, const char* suffix) {
 
 static int find_disc_image(char* out_path, int out_sz) {
     static const char* dirs[] = { ".", "orig", "rom", NULL };
+
+    if (g_disc_override[0] != '\0') {
+        snprintf(out_path, out_sz, "%s", g_disc_override);
+        return 1;
+    }
     int d;
 
     for (d = 0; dirs[d]; d++) {
@@ -312,15 +355,35 @@ static int find_disc_image(char* out_path, int out_sz) {
 
 /* ---- public API ---- */
 
+void pc_disc_set_path(const char* path) {
+    g_disc_override_fd = -1;
+    if (!path) {
+        g_disc_override[0] = '\0';
+        return;
+    }
+    snprintf(g_disc_override, sizeof(g_disc_override), "%s", path);
+}
+
+void pc_disc_set_fd(int fd) {
+    g_disc_override[0] = '\0';
+    g_disc_override_fd = fd;
+}
+
 int pc_disc_init(void) {
     char path[512];
+    const char* source_label = path;
 
     if (g_disc_open) return 1;
-    if (!find_disc_image(path, sizeof(path))) return 0;
-    if (!disc_open(&g_disc, path)) return 0;
+    if (g_disc_override_fd >= 0) {
+        source_label = "Android SAF descriptor";
+        if (!disc_open_fd(&g_disc, g_disc_override_fd)) return 0;
+    } else {
+        if (!find_disc_image(path, sizeof(path))) return 0;
+        if (!disc_open_path(&g_disc, path)) return 0;
+    }
 
     if (!gcm_verify(&g_disc)) {
-        if (g_pc_verbose) printf("[PC] %s: not a valid GC disc image\n", path);
+        if (g_pc_verbose) printf("[PC] %s: not a valid GC disc image\n", source_label);
         disc_close(&g_disc);
         return 0;
     }
@@ -330,7 +393,7 @@ int pc_disc_init(void) {
         disc_read(&g_disc, 0, id, 6);
         id[6] = '\0';
         if (g_pc_verbose) printf("[PC] Disc image: %s (%s, %s)\n",
-            path, g_disc.is_ciso ? "CISO" : "ISO/GCM", id);
+            source_label, g_disc.is_ciso ? "CISO" : "ISO/GCM", id);
     }
 
     /* cache DOL info */

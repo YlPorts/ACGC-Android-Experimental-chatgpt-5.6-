@@ -12,6 +12,11 @@
 #include "m_malloc.h"
 #include "m_common_data.h"
 
+#ifdef TARGET_PC
+#include "pc_language.h"
+#include <string.h>
+#endif
+
 extern u8 kan_tizu_f_TA_tex_txt[];
 extern u8 kan_tizu_tst1_TA_tex_txt[];
 extern u8 kan_tizu_t_TA_tex_txt[];
@@ -600,6 +605,101 @@ static mMP_Label_c* mMP_label_data[mMP_LABEL_NUM] = {
     &mMP_label_station, &mMP_label_junk,   &mMP_label_museum, &mMP_label_needle, &mMP_label_port,
 };
 
+#ifdef TARGET_PC
+/* Map/building labels are pack-owned. ASCII bytes map directly to the
+ * international game font for the strings used here. Accented glyphs can be
+ * added later through an encoded-string extension without changing call sites. */
+static u8 mMP_loc_shop[24];
+static u8 mMP_loc_police[24];
+static u8 mMP_loc_police2[24];
+static u8 mMP_loc_post[24];
+static u8 mMP_loc_post2[24];
+static u8 mMP_loc_well[24];
+static u8 mMP_loc_well2[24];
+static u8 mMP_loc_station[24];
+static u8 mMP_loc_station2[24];
+static u8 mMP_loc_dump[24];
+static u8 mMP_loc_museum[24];
+static u8 mMP_loc_tailor[24];
+static u8 mMP_loc_dock[24];
+
+static int mMP_copy_pack_label(u8* dst, int capacity, const char* key, const char* fallback) {
+    const char* src = pc_language_ui_lookup(key, fallback);
+    int n = 0;
+    if (capacity <= 0) return 0;
+    while (n < capacity && src != NULL && src[n] != '\0') {
+        dst[n] = (u8)src[n];
+        n++;
+    }
+    return n;
+}
+
+static void mMP_set_localized_word(mMP_LabelWord_c* word, u8* str, int len) {
+    word->str = str;
+    word->str_len = len;
+}
+
+static void mMP_localize_building_labels(void) {
+    const char* lang = pc_language_code();
+    static char last_lang[32] = "";
+    int len;
+
+    if (lang == NULL) lang = "en";
+    if (strncmp(last_lang, lang, sizeof(last_lang) - 1) == 0) return;
+    strncpy(last_lang, lang, sizeof(last_lang) - 1);
+    last_lang[sizeof(last_lang) - 1] = '\0';
+
+    /* English defaults use the original built-in strings. */
+    mMP_set_localized_word(&mMP_label_word_shop, mMP_label_str_shop, 4);
+    mMP_set_localized_word(&mMP_label_word_police, mMP_label_str_police, 6);
+    mMP_set_localized_word(&mMP_label_word_police2, mMP_label_str_police2, 7);
+    mMP_set_localized_word(&mMP_label_word_post, mMP_label_str_post, 4);
+    mMP_set_localized_word(&mMP_label_word_post2, mMP_label_str_post2, 6);
+    mMP_set_localized_word(&mMP_label_word_shrine, mMP_label_str_shrine, 7);
+    mMP_set_localized_word(&mMP_label_word_shrine2, mMP_label_str_shrine2, 4);
+    mMP_set_localized_word(&mMP_label_word_station, mMP_label_str_station, 5);
+    mMP_set_localized_word(&mMP_label_word_station2, mMP_label_str_station2, 7);
+    mMP_set_localized_word(&mMP_label_word_junk, mMP_label_str_junk, 4);
+    mMP_set_localized_word(&mMP_label_word_museum, mMP_label_str_museum, 6);
+    mMP_set_localized_word(&mMP_label_word_needle, mMP_label_str_needle, 6);
+    mMP_set_localized_word(&mMP_label_word_port, mMP_label_str_port, 4);
+
+    if (strcmp(lang, "en") == 0) return;
+
+    len = mMP_copy_pack_label(mMP_loc_shop, sizeof(mMP_loc_shop), "location.shop", "Shop");
+    mMP_set_localized_word(&mMP_label_word_shop, mMP_loc_shop, len);
+
+    len = mMP_copy_pack_label(mMP_loc_police, sizeof(mMP_loc_police), "location.police_station_line1", "Police");
+    mMP_set_localized_word(&mMP_label_word_police, mMP_loc_police, len);
+    len = mMP_copy_pack_label(mMP_loc_police2, sizeof(mMP_loc_police2), "location.police_station_line2", "");
+    mMP_set_localized_word(&mMP_label_word_police2, mMP_loc_police2, len);
+
+    len = mMP_copy_pack_label(mMP_loc_post, sizeof(mMP_loc_post), "location.post_office_line1", "Post");
+    mMP_set_localized_word(&mMP_label_word_post, mMP_loc_post, len);
+    len = mMP_copy_pack_label(mMP_loc_post2, sizeof(mMP_loc_post2), "location.post_office_line2", "");
+    mMP_set_localized_word(&mMP_label_word_post2, mMP_loc_post2, len);
+
+    len = mMP_copy_pack_label(mMP_loc_well, sizeof(mMP_loc_well), "location.wishing_well_line1", "Wishing");
+    mMP_set_localized_word(&mMP_label_word_shrine, mMP_loc_well, len);
+    len = mMP_copy_pack_label(mMP_loc_well2, sizeof(mMP_loc_well2), "location.wishing_well_line2", "Well");
+    mMP_set_localized_word(&mMP_label_word_shrine2, mMP_loc_well2, len);
+
+    len = mMP_copy_pack_label(mMP_loc_station, sizeof(mMP_loc_station), "location.train_station_line1", "Train");
+    mMP_set_localized_word(&mMP_label_word_station, mMP_loc_station, len);
+    len = mMP_copy_pack_label(mMP_loc_station2, sizeof(mMP_loc_station2), "location.train_station_line2", "Station");
+    mMP_set_localized_word(&mMP_label_word_station2, mMP_loc_station2, len);
+
+    len = mMP_copy_pack_label(mMP_loc_dump, sizeof(mMP_loc_dump), "location.dump", "Dump");
+    mMP_set_localized_word(&mMP_label_word_junk, mMP_loc_dump, len);
+    len = mMP_copy_pack_label(mMP_loc_museum, sizeof(mMP_loc_museum), "location.museum", "Museum");
+    mMP_set_localized_word(&mMP_label_word_museum, mMP_loc_museum, len);
+    len = mMP_copy_pack_label(mMP_loc_tailor, sizeof(mMP_loc_tailor), "location.tailor", "Tailor");
+    mMP_set_localized_word(&mMP_label_word_needle, mMP_loc_tailor, len);
+    len = mMP_copy_pack_label(mMP_loc_dock, sizeof(mMP_loc_dock), "location.dock", "Dock");
+    mMP_set_localized_word(&mMP_label_word_port, mMP_loc_dock, len);
+}
+#endif
+
 static int mMP_check_layer(f32 y) {
     int layer;
 
@@ -1143,6 +1243,9 @@ static void mMP_set_cursol_dl(GRAPH* graph, mMP_Ovl_c* map_ovl, f32 base_x, f32 
 }
 
 static void mMP_set_label_dl(GAME* game, mMP_LabelInfo_c* label_info, f32 xpos, f32 ypos) {
+#ifdef TARGET_PC
+    mMP_localize_building_labels();
+#endif
     mMP_Label_c* label = mMP_label_data[label_info->label_no];
 
     if (label != NULL) {

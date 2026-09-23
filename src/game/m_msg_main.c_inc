@@ -1,3 +1,7 @@
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
+
 static int mMsg_Set_SizeCode(mMsg_Window_c* msg_p, int idx) {
     return mFont_CodeSize_idx_get(msg_p->msg_data->text_buf.data, idx);
 }
@@ -764,6 +768,9 @@ extern int mMsg_CopyFree(mMsg_Window_c* msg_p, int str_no, u8* data, int start_i
         mMsg_CopyString(&data[start_idx], free_str_p, free_str_len);
 
         article = article != mIN_ARTICLE_NUM ? article : msg_p->free_str_article[str_no];
+#ifdef TARGET_PC
+        if (pc_language_grammar_is_packed(article)) article = mIN_ARTICLE_NONE;
+#endif
         if (article != mIN_ARTICLE_NONE) {
             u8 article_str[mIN_ITEM_NAME_LEN + 1];
             int article_len;
@@ -837,9 +844,15 @@ extern int mMsg_CopyCountryName(u8* data, int start_idx, int len, u32 capitalize
 
     mMsg_CopyString(&data[start_idx], land_name, land_name_len);
 
-// This entire block can be removed in the English version
-#ifndef IMPROVEMENTS
-    /* Leftover from JP to add 'むら' (mura) to the town name */
+/* The original international GAFE01 build must insert the saved town name
+ * verbatim. This block is a leftover from the Japanese game that appends a
+ * localized "mura" suffix. In the USA string bank slot 0x1E4 is ordinary
+ * vocabulary ("common butterfly"); in the converted Spanish PAL bank the
+ * same slot is "mariposa comun". Executing it on PC/Android therefore turns
+ * names such as "latam" into "latammariposa...".
+ *
+ * Keep the legacy code only for non-PC targets that explicitly need it. */
+#if !defined(TARGET_PC) && !defined(IMPROVEMENTS)
     {
         u8 mura_str[mMsg_FREE_STRING_LEN];
         u8* mura_str_p = mura_str;
@@ -917,6 +930,9 @@ extern int mMsg_CopyItem(mMsg_Window_c* msg_p, int str_no, u8* data, int start_i
         mMsg_CopyString(&data[start_idx], free_str_p, free_str_len);
 
         article = article != mIN_ARTICLE_NUM ? article : msg_p->item_str_article[str_no];
+#ifdef TARGET_PC
+        if (pc_language_grammar_is_packed(article)) article = mIN_ARTICLE_NONE;
+#endif
         if (article != mIN_ARTICLE_NONE) {
             u8 article_str[mIN_ITEM_NAME_LEN + 1];
 

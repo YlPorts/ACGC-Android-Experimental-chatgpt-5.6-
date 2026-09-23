@@ -1,4 +1,7 @@
 #include "m_address_ovl.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 #include "m_common_data.h"
 #include "m_board_ovl.h"
@@ -452,6 +455,10 @@ static void mAD_address_draw_init(Submenu* submenu) {
 extern Gfx lat_mes_winT_model[];
 
 static void mAD_set_first_tag(Submenu* submenu, GAME* game, GRAPH* graph, f32 pos_x, f32 pos_y) {
+#ifdef TARGET_PC
+    pc_language_ui_copy(mAD_title_str, sizeof(mAD_title_str), "address.choose_addressee", "Choose an addressee.");
+    pc_language_ui_copy(mAD_title_str2, sizeof(mAD_title_str2), "address.empty", "Your address book is empty!");
+#endif
     static u8* title_table[] = { mAD_title_str, mAD_title_str2 };
     static int title_length[] = { sizeof(mAD_title_str), sizeof(mAD_title_str2) };
     static f32 offset[][2] = { { -66.0f, 8.0f }, { -90.0f, 8.0f } };

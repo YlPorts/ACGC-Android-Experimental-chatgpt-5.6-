@@ -4,6 +4,13 @@
 
 #include "types.h"
 
+/* Override the disc image path. */
+void pc_disc_set_path(const char* path);
+
+/* Override with a borrowed seekable descriptor. The reader duplicates it and
+ * owns only the duplicate; the caller retains ownership of the original fd. */
+void pc_disc_set_fd(int fd);
+
 /* Initialize disc image reader. Searches for .ciso/.iso/.gcm in
  * current dir, orig/, rom/. Parses GCM filesystem into lookup table.
  * Returns 1 on success, 0 if no disc image found. */

@@ -7,6 +7,9 @@
 #include "m_font.h"
 #include "m_common_data.h"
 #include "m_debug.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 static u8 mLE_player_title[16] = "Enter your name.";
 static u8 mLE_country_title[18] = "Enter Destination.";
@@ -15,6 +18,25 @@ static u8 mLE_reset_title[7] = "Say it!";
 static u8 mLE_request_title[15] = "Request a song!";
 static u8 mLE_myoriginal_title[13] = "Enter a name.";
 static u8 mLE_island_title[20] = "Enter a destination.";
+
+#ifdef TARGET_PC
+static void mLE_copy_ui(u8* dst, int cap, const char* key, const char* fallback) {
+    const char* src = pc_language_ui_lookup(key, fallback);
+    int i = 0;
+    while (i < cap && src[i] != '\0') { dst[i] = (u8)src[i]; i++; }
+    while (i < cap) dst[i++] = CHAR_SPACE;
+}
+
+static void mLE_apply_ui_language(void) {
+    mLE_copy_ui(mLE_player_title, sizeof(mLE_player_title), "edit.enter_name", "Enter your name.");
+    mLE_copy_ui(mLE_country_title, sizeof(mLE_country_title), "edit.enter_destination", "Enter Destination.");
+    mLE_copy_ui(mLE_ephrase_title, sizeof(mLE_ephrase_title), "edit.enter_something", "Enter something!");
+    mLE_copy_ui(mLE_reset_title, sizeof(mLE_reset_title), "edit.say_it", "Say it!");
+    mLE_copy_ui(mLE_request_title, sizeof(mLE_request_title), "edit.request_song", "Request a song!");
+    mLE_copy_ui(mLE_myoriginal_title, sizeof(mLE_myoriginal_title), "edit.enter_design_name", "Enter a name.");
+    mLE_copy_ui(mLE_island_title, sizeof(mLE_island_title), "edit.enter_island_destination", "Enter a destination.");
+}
+#endif
 
 typedef struct ledit_win_data_s {
     f32 edit_ofs[2];
@@ -171,6 +193,9 @@ extern Gfx ledit_common_mode[];
 extern Gfx lat_sousa_spT_model[];
 
 static void mLE_set_dl(Submenu* submenu, GAME* game, mSM_MenuInfo_c* menu_info) {
+#ifdef TARGET_PC
+    mLE_apply_ui_language();
+#endif
     mED_Ovl_c* editor_ovl = submenu->overlay->editor_ovl;
     mLE_win_data_c* data_p = &mLE_win_data[menu_info->data0];
     GRAPH* graph = game->graph;

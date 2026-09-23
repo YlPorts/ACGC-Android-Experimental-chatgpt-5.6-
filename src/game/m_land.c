@@ -33,6 +33,10 @@
 
 #include "m_land.h"
 
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
+
 #include "libc64/qrand.h"
 #include "m_common_data.h"
 #include "m_font.h"
@@ -154,6 +158,17 @@ extern void mLd_CopyLandName(u8* dst, u8* src) {
  * @return The length of the new town name with "Mura" (むら/村) added.
  */
 extern int mLd_AddMuraString(u8* name, int name_len) {
+#ifdef TARGET_PC
+    /* GAFE01 is an international build. The Japanese town-name suffix
+     * ("mura") is not part of international town names, so PC/Android must
+     * never fetch string slot 484 here. PAL language packs reuse that slot
+     * for ordinary vocabulary (Spanish happens to contain "mariposa"),
+     * which caused custom names such as "latam" to render as
+     * "latammariposa" in dialogue. Keep the saved name verbatim regardless
+     * of whether an external language pack is fully/partially loaded. */
+    (void)name;
+    return name_len;
+#else
     u8 buf[16];
     int size;
 
@@ -162,6 +177,7 @@ extern int mLd_AddMuraString(u8* name, int name_len) {
     mem_copy(name + name_len, buf, size);
 
     return size + name_len;
+#endif
 }
 
 /**

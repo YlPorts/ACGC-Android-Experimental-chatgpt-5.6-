@@ -1,4 +1,7 @@
 #include "m_catalog_ovl.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 #include "f_furniture.h"
 #include "m_room_type.h"
@@ -926,6 +929,14 @@ static void mCL_item_draw(Submenu* submenu, mSM_MenuInfo_c* menu_info, GAME* gam
 }
 
 static void mCL_price_draw(Submenu* submenu, GAME* game, GRAPH* graph, mCL_Item_c* item, f32 pos_x, f32 pos_y) {
+#ifdef TARGET_PC
+    {
+        const char* t = pc_language_ui_lookup("catalog.not_for_sale", "Not for Sale");
+        int i = 0;
+        while (i < (int)sizeof(not_sell) && t[i] != '\0') { not_sell[i] = (u8)t[i]; i++; }
+        while (i < (int)sizeof(not_sell)) not_sell[i++] = CHAR_SPACE;
+    }
+#endif
     submenu->overlay->set_char_matrix_proc(graph);
 
     if (item->price == 0) {

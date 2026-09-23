@@ -1,4 +1,7 @@
 #include "ac_animal_logo.h"
+#ifdef PC_ENHANCEMENTS
+#include "pc_language.h"
+#endif
 
 #include "m_common_data.h"
 #include "m_malloc.h"
@@ -795,7 +798,11 @@ static void aAL_pc_menu_draw(ANIMAL_LOGO_ACTOR* actor, GAME* game) {
   static const u32 dim_g[5] = {  40,  50,  40,  50,  50 };
   static const u32 dim_b[5] = {  40,  30,  60,  70,  60 };
 
-  static const char* const labels[3] = { "Start Game", "Options", "Quit Game" }; // me when const
+  const char* labels[3] = {
+    pc_language_ui_lookup("menu.start_game", "Start Game"),
+    pc_language_ui_lookup("menu.options", "Options"),
+    pc_language_ui_lookup("menu.quit_game", "Quit Game")
+  };
 
   f32 y_base = 135.0f;
   f32 line_h = 18.0f;
