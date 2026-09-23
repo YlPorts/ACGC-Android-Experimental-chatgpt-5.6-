@@ -1,0 +1,87 @@
+name: Validate V4 R3 safe boot
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v4-r3-safe-boot
+    paths:
+      - ".r3/**"
+      - ".github/workflows/v4-r3-validate.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Apply R3 safe-boot overlay
+        run: |
+          set -euo pipefail
+          test -f .r3/acgc_r3_overlay.tar.gz
+          tar -xzf .r3/acgc_r3_overlay.tar.gz -C .
+          rm -rf .r3
+
+      - name: Ensure SDL2
+        run: |
+          if [ ! -f android/SDL/CMakeLists.txt ]; then
+            rm -rf android/SDL
+            git clone --depth 1 --branch release-2.30.11 https://github.com/libsdl-org/SDL.git android/SDL
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Build R3 APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Verify R3 ABI and content
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          CHECK="$RUNNER_TEMP/acgc-r3-check"
+          mkdir -p "$CHECK"
+          unzip -q "$APK" "lib/*" -d "$CHECK"
+          test -f "$CHECK/lib/armeabi-v7a/libmain.so"
+          readelf -h "$CHECK/lib/armeabi-v7a/libmain.so" | grep -Eq 'Class:[[:space:]]+ELF32'
+          readelf -h "$CHECK/lib/armeabi-v7a/libmain.so" | grep -Eq 'Machine:[[:space:]]+ARM'
+          strings "$CHECK/lib/armeabi-v7a/libmain.so" | grep -q "enable_pal_audio.flag"
+          strings "$CHECK/lib/armeabi-v7a/libmain.so" | grep -q "startup-stage.txt"
+          sha256sum "$APK"
+
+      - name: Save R3 APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Animal-Crossing-V4-R3-SafeBoot.apk
+
+      - name: Upload R3 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Animal-Crossing-V4-R3-SafeBoot
+          path: Animal-Crossing-V4-R3-SafeBoot.apk
+          if-no-files-found: error
+
+      - name: Commit tested R3 source
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "V4 R3: safe boot with opt-in PAL audio diagnostics"
+          git push origin HEAD:v4-r3-safe-boot
