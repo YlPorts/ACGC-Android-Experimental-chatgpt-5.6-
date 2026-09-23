@@ -26,8 +26,10 @@ jobs:
           set -euo pipefail
           test -f .bootstrap/v4_overlay.tar.gz
           tar -xzf .bootstrap/v4_overlay.tar.gz -C .
+          # Workflows are updated separately by the GitHub connector because
+          # GITHUB_TOKEN cannot create/update workflow files without workflows permission.
+          git restore .github/workflows/android-32.yml
           rm -rf .bootstrap
-          rm -f .github/workflows/v4-bootstrap.yml
           rm -f android/app/src/main/java/com/acgc/port/ContentManagerActivity.java
 
       - name: Commit expanded V4 sources
