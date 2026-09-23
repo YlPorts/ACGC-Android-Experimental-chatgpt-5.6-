@@ -22,11 +22,11 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.acgc.port"
+        applicationId "com.acgc.port.v4"
         minSdk 23
         targetSdk 34
-        versionCode 4
-        versionName "4"
+        versionCode 401
+        versionName "4.0-side-by-side"
 
         externalNativeBuild {
             cmake {
