@@ -1,0 +1,87 @@
+name: Validate original V4 safe restore
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v4-original-safe-noaudio
+    paths:
+      - ".restore/**"
+      - ".github/workflows/v4-original-safe-restore.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  restore-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Restore exact V4 files and remove unsafe whole-audiorom override
+        run: |
+          set -euo pipefail
+          test -f .restore/acgc_restore_overlay.tar.gz
+          tar -xzf .restore/acgc_restore_overlay.tar.gz -C .
+          rm -rf .restore
+          rm -f docs/V0.4.27_PAL_MULTI5_AUDIO.md
+
+      - name: Ensure SDL2 source
+        run: |
+          if [ ! -f android/SDL/CMakeLists.txt ]; then
+            rm -rf android/SDL
+            git clone --depth 1 --branch release-2.30.11 https://github.com/libsdl-org/SDL.git android/SDL
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Build original V4 safe APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Verify APK, icon resources and ABI
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          unzip -l "$APK" | grep -q "lib/armeabi-v7a/libmain.so"
+          unzip -l "$APK" | grep -Eq "res/.*\.png"
+          CHECK_DIR="$RUNNER_TEMP/acgc-check"
+          mkdir -p "$CHECK_DIR"
+          unzip -q "$APK" "lib/*" -d "$CHECK_DIR"
+          readelf -h "$CHECK_DIR/lib/armeabi-v7a/libmain.so" | grep -Eq 'Class:[[:space:]]+ELF32'
+          readelf -h "$CHECK_DIR/lib/armeabi-v7a/libmain.so" | grep -Eq 'Machine:[[:space:]]+ARM'
+          sha256sum "$APK"
+
+      - name: Save tested APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Animal-Crossing-V4-Original-Safe.apk
+
+      - name: Upload tested APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Animal-Crossing-V4-Original-Safe
+          path: Animal-Crossing-V4-Original-Safe.apk
+          if-no-files-found: error
+
+      - name: Commit tested restore
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Restore original V4 base and disable unsafe PAL audiorom override"
+          git push origin HEAD:v4-original-safe-noaudio
