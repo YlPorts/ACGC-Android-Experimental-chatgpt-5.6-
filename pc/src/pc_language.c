@@ -2,6 +2,7 @@
 #include "pc_language.h"
 
 #include "jsyswrap.h"
+#include "jaudio_NES/audioheaders.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -21,6 +22,29 @@
 #define PC_LANG_UI_MAX_ENTRIES 512
 #define PC_LANG_UI_KEY_MAX 63
 #define PC_LANG_UI_VALUE_MAX 127
+
+/* PAL audio packs are a matched pair: the region-specific audiorom.img plus
+ * the four ArcHeader tables compiled by Nintendo for that exact image.
+ * Loading the image without its matching headers makes the USA engine read
+ * sequences/banks/waves from the wrong offsets and can crash. */
+#define PC_LANG_AUDIO_SEQ_HEADER_SIZE  0x0FA0u
+#define PC_LANG_AUDIO_BANK_HEADER_SIZE 0x0A00u
+#define PC_LANG_AUDIO_WAVE_HEADER_SIZE 0x0070u
+#define PC_LANG_AUDIO_DATA_HEADER_SIZE 0x0040u
+#define PC_LANG_AUDIO_HEADER_SIZE      0x1A50u
+#define PC_LANG_AUDIO_SEQ_OFFSET       0x0000u
+#define PC_LANG_AUDIO_BANK_OFFSET      0x0FA0u
+#define PC_LANG_AUDIO_WAVE_OFFSET      0x19A0u
+#define PC_LANG_AUDIO_DATA_OFFSET      0x1A10u
+#define PC_LANG_AUDIO_MAX_ROM_SIZE     (16u * 1024u * 1024u)
+
+static int s_audio_original_snapshotted = 0;
+static int s_audio_override_enabled = 0;
+static char s_audio_rom_path[PC_LANG_PATH_MAX] = {0};
+static u8 s_audio_seq_original[PC_LANG_AUDIO_SEQ_HEADER_SIZE];
+static u8 s_audio_bank_original[PC_LANG_AUDIO_BANK_HEADER_SIZE];
+static u8 s_audio_wave_original[PC_LANG_AUDIO_WAVE_HEADER_SIZE];
+static u8 s_audio_data_original[PC_LANG_AUDIO_DATA_HEADER_SIZE];
 
 /* Runtime asset arrays are writable on TARGET_PC and are initialized from the
  * user's USA disc before pc_language_init(). A PAL pack may safely replace
@@ -54,8 +78,9 @@ typedef struct {
     int enabled;
 } PCLanguageResource;
 
-/* Only language-bearing resources are eligible. Models, game logic, audio and
- * save data can never be replaced by a language pack. */
+/* Only language-bearing resources are eligible here. Models, game logic and
+ * save data can never be replaced by a language pack. Regional audio is handled
+ * separately and only as a validated audiorom + ArcHeader pair. */
 static PCLanguageResource s_resources[] = {
     { RESOURCE_MAIL, "mail_data.bin", NULL, 0, 0, 0, 0 },
     { RESOURCE_MAIL_TABLE, "mail_data_table.bin", NULL, 0, 0, 0, 0 },
@@ -6066,6 +6091,161 @@ static void clear_resources(void) {
     }
 }
 
+static int load_file(const char* path, u8** out_data, u32* out_size);
+
+static u16 audio_read_be16(const u8* p) {
+    return (u16)(((u16)p[0] << 8) | (u16)p[1]);
+}
+
+static u32 audio_read_be32(const u8* p) {
+    return ((u32)p[0] << 24) | ((u32)p[1] << 16) | ((u32)p[2] << 8) | (u32)p[3];
+}
+
+static void snapshot_audio_headers_originals(void) {
+    if (s_audio_original_snapshotted) return;
+    memcpy(s_audio_seq_original, &AudioseqHeaderStart, sizeof(s_audio_seq_original));
+    memcpy(s_audio_bank_original, &AudiobankHeaderStart, sizeof(s_audio_bank_original));
+    memcpy(s_audio_wave_original, &AudiowaveHeaderStart, sizeof(s_audio_wave_original));
+    memcpy(s_audio_data_original, &AudiodataHeaderStart, sizeof(s_audio_data_original));
+    s_audio_original_snapshotted = 1;
+}
+
+static void restore_audio_headers_originals(void) {
+    if (!s_audio_original_snapshotted) return;
+    memcpy(&AudioseqHeaderStart, s_audio_seq_original, sizeof(s_audio_seq_original));
+    memcpy(&AudiobankHeaderStart, s_audio_bank_original, sizeof(s_audio_bank_original));
+    memcpy(&AudiowaveHeaderStart, s_audio_wave_original, sizeof(s_audio_wave_original));
+    memcpy(&AudiodataHeaderStart, s_audio_data_original, sizeof(s_audio_data_original));
+    s_audio_override_enabled = 0;
+    s_audio_rom_path[0] = '\0';
+}
+
+static int audio_file_size(const char* path, u32* out_size) {
+    FILE* f;
+    long length;
+    if (!path || !out_size) return 0;
+    *out_size = 0;
+    f = fopen(path, "rb");
+    if (!f) return 0;
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return 0; }
+    length = ftell(f);
+    fclose(f);
+    if (length <= 0 || (unsigned long)length > PC_LANG_AUDIO_MAX_ROM_SIZE) return 0;
+    *out_size = (u32)length;
+    return 1;
+}
+
+static int validate_audio_arc_header(const u8* raw, u32 raw_offset, int expected_entries,
+                                     u32 section_size, int expected_cache_for_all) {
+    int i;
+    if (!raw) return 0;
+    if (audio_read_be16(raw + raw_offset) != (u16)expected_entries) return 0;
+    if (audio_read_be16(raw + raw_offset + 2) != 0) return 0;
+    if (audio_read_be32(raw + raw_offset + 4) != 0) return 0;
+    for (i = 0; i < expected_entries; i++) {
+        const u8* e = raw + raw_offset + 16u + (u32)i * 16u;
+        u32 addr = audio_read_be32(e + 0);
+        u32 size = audio_read_be32(e + 4);
+        u8 medium = e[8];
+        u8 cache = e[9];
+        if (medium != 2) return 0; /* MEDIUM_CART */
+        if (expected_cache_for_all >= 0) {
+            if (cache != (u8)expected_cache_for_all) return 0;
+        } else if (cache > 2) {
+            return 0;
+        }
+        if (addr > section_size || size > section_size - addr) return 0;
+    }
+    return 1;
+}
+
+static int validate_audio_headers(const u8* raw, u32 size, u32 audiorom_size) {
+    const u8* d;
+    u32 seq_addr, seq_size, bank_addr, bank_size, wave_addr, wave_size;
+    if (!raw || size != PC_LANG_AUDIO_HEADER_SIZE) return 0;
+    d = raw + PC_LANG_AUDIO_DATA_OFFSET + 16u;
+    seq_addr = audio_read_be32(d + 0x00);
+    seq_size = audio_read_be32(d + 0x04);
+    bank_addr = audio_read_be32(d + 0x10);
+    bank_size = audio_read_be32(d + 0x14);
+    wave_addr = audio_read_be32(d + 0x20);
+    wave_size = audio_read_be32(d + 0x24);
+
+    if (audio_read_be16(raw + PC_LANG_AUDIO_DATA_OFFSET) != 3) return 0;
+    if (seq_addr != 0 || bank_addr != seq_size || wave_addr != bank_addr + bank_size) return 0;
+    if (wave_addr > audiorom_size || wave_size != audiorom_size - wave_addr) return 0;
+    if (d[8] != 2 || d[9] != 0 || d[0x18] != 2 || d[0x19] != 0 || d[0x28] != 2 || d[0x29] != 0) return 0;
+
+    if (!validate_audio_arc_header(raw, PC_LANG_AUDIO_SEQ_OFFSET, 249, seq_size, -1)) return 0;
+    if (!validate_audio_arc_header(raw, PC_LANG_AUDIO_BANK_OFFSET, 159, bank_size, -1)) return 0;
+    if (!validate_audio_arc_header(raw, PC_LANG_AUDIO_WAVE_OFFSET, 6, wave_size, 4)) return 0;
+    return 1;
+}
+
+static void apply_audio_arc_header(ArcHeader* dst, const u8* raw, int expected_entries) {
+    int i;
+    dst->numEntries = (s16)audio_read_be16(raw + 0);
+    dst->medium = (s16)audio_read_be16(raw + 2);
+    dst->pData = NULL;
+    dst->copy = raw[8];
+    memset(dst->pad, 0, sizeof(dst->pad));
+    for (i = 0; i < expected_entries; i++) {
+        const u8* e = raw + 16u + (u32)i * 16u;
+        ArcEntry* de = &dst->entries[i];
+        de->addr = audio_read_be32(e + 0);
+        de->size = (s32)audio_read_be32(e + 4);
+        de->medium = (s8)e[8];
+        de->cacheType = (s8)e[9];
+        de->param0 = (s16)audio_read_be16(e + 10);
+        de->param1 = (s16)audio_read_be16(e + 12);
+        de->param2 = (s16)audio_read_be16(e + 14);
+    }
+}
+
+static int load_audio_override(const char* code) {
+    char header_path[PC_LANG_PATH_MAX];
+    char rom_path[PC_LANG_PATH_MAX];
+    u8* raw = NULL;
+    u32 raw_size = 0;
+    u32 rom_size = 0;
+
+    if (!code || strcmp(code, "en") == 0) return 0;
+    snprintf(header_path, sizeof(header_path), "languages/%s/audio/audio_headers.bin", code);
+    snprintf(rom_path, sizeof(rom_path), "languages/%s/audio/audiorom.img", code);
+    if (!audio_file_size(rom_path, &rom_size)) return 0;
+    if (!load_file(header_path, &raw, &raw_size)) return 0;
+    if (!validate_audio_headers(raw, raw_size, rom_size)) {
+        printf("[Language/Audio] Ignoring incompatible PAL audio for '%s'\n", code);
+        free(raw);
+        return 0;
+    }
+
+    apply_audio_arc_header(&AudioseqHeaderStart, raw + PC_LANG_AUDIO_SEQ_OFFSET, 249);
+    apply_audio_arc_header(&AudiobankHeaderStart, raw + PC_LANG_AUDIO_BANK_OFFSET, 159);
+    apply_audio_arc_header(&AudiowaveHeaderStart, raw + PC_LANG_AUDIO_WAVE_OFFSET, 6);
+    apply_audio_arc_header(&AudiodataHeaderStart, raw + PC_LANG_AUDIO_DATA_OFFSET, 3);
+    free(raw);
+
+    strncpy(s_audio_rom_path, rom_path, sizeof(s_audio_rom_path) - 1);
+    s_audio_rom_path[sizeof(s_audio_rom_path) - 1] = '\0';
+    s_audio_override_enabled = 1;
+    printf("[Language/Audio] PAL audio enabled for '%s' (%u bytes)\n", code, rom_size);
+    return 1;
+}
+
+int pc_language_audio_override_enabled(void) {
+    return s_audio_override_enabled;
+}
+
+const char* pc_language_audio_rom_path(void) {
+    return s_audio_override_enabled ? s_audio_rom_path : NULL;
+}
+
+void pc_language_audio_fallback_to_usa(void) {
+    restore_audio_headers_originals();
+    printf("[Language/Audio] Falling back to USA audio headers and ROM\n");
+}
+
 static int load_file(const char* path, u8** out_data, u32* out_size) {
     FILE* f;
     long length;
@@ -6277,6 +6457,8 @@ void pc_language_init(const char* code) {
 
     snapshot_graphics_originals();
     restore_graphics_originals();
+    snapshot_audio_headers_originals();
+    restore_audio_headers_originals();
     clear_resources();
     clear_item_language();
     clear_ui_strings();
@@ -6293,6 +6475,11 @@ void pc_language_init(const char* code) {
         printf("[Language] English: using original ROM resources\n");
         return;
     }
+
+    /* Audio is optional, but only activates when the PAL image and its exact
+     * region header set validate as a pair. A partial/bad audio pack safely
+     * falls back to the USA ROM audio. */
+    load_audio_override(s_code);
 
     load_ui_strings(s_code);
     {
@@ -6312,17 +6499,18 @@ void pc_language_init(const char* code) {
     for (i = 0; i < sizeof(s_resources) / sizeof(s_resources[0]); i++) {
         if (s_resources[i].enabled) enabled_count++;
     }
-    if (enabled_count == 0 && s_item_file_count == 0) {
+    if (enabled_count == 0 && s_item_file_count == 0 && !s_audio_override_enabled) {
         printf("[Language] No valid resources found for '%s'; using English ROM data\n", s_code);
         return;
     }
-    s_external = 1;
-    printf("[Language] Loaded '%s': %d ARAM resources, %d item tables, %u bytes; missing resources fall back to English\n",
-           s_code, enabled_count, s_item_file_count, total);
+    s_external = (enabled_count > 0 || s_item_file_count > 0);
+    printf("[Language] Loaded '%s': %d ARAM resources, %d item tables, %u bytes, regional audio=%s; missing resources fall back to English\n",
+           s_code, enabled_count, s_item_file_count, total, s_audio_override_enabled ? "yes" : "no");
 }
 
 void pc_language_shutdown(void) {
     restore_graphics_originals();
+    restore_audio_headers_originals();
     clear_resources();
     clear_item_language();
     clear_ui_strings();

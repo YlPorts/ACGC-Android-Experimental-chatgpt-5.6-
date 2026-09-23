@@ -1,6 +1,7 @@
 /* pc_dvd.c - DVD filesystem: reads from disc image (CISO/ISO/GCM) or extracted files */
 #include "pc_platform.h"
 #include "pc_disc.h"
+#include "pc_language.h"
 
 typedef struct {
     char gameName[4];
@@ -102,6 +103,32 @@ BOOL DVDFastOpen(s32 entrynum, void* fileInfo) {
     }
 
     const char* path = dvd_entry_table[entrynum].path;
+
+    /* A regional audiorom may only replace the USA file when pc_language has
+     * already validated the matching PAL ArcHeader set. This check happens
+     * before the disc lookup so Jac_CheckFile/DVDT_LoadtoARAM see the same
+     * external file and size. */
+    if ((strcmp(path, "/audiorom.img") == 0 || strcmp(path, "audiorom.img") == 0) &&
+        pc_language_audio_override_enabled()) {
+        const char* audio_path = pc_language_audio_rom_path();
+        FILE* fp = audio_path ? fopen(audio_path, "rb") : NULL;
+        if (fp) {
+            long length;
+            if (fseek(fp, 0, SEEK_END) == 0 && (length = ftell(fp)) > 0 &&
+                fseek(fp, 0, SEEK_SET) == 0) {
+                memset(fileInfo, 0, 0x3C);
+                *dvd_fi_fp(fileInfo) = fp;
+                *dvd_fi_startAddr(fileInfo) = 0;
+                *dvd_fi_length(fileInfo) = (u32)length;
+                return TRUE;
+            }
+            fclose(fp);
+        }
+        /* Validation succeeded earlier, but if the file disappeared or became
+         * unreadable, fall back to the USA disc instead of failing audio boot. */
+        fprintf(stderr, "[Language/Audio] Regional audiorom became unavailable; falling back to USA\n");
+        pc_language_audio_fallback_to_usa();
+    }
 
     /* Try disc image first */
     if (pc_disc_is_open()) {
