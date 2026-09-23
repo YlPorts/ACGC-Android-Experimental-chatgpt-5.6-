@@ -41,6 +41,20 @@ int           g_pc_window_w = PC_SCREEN_WIDTH;
 int           g_pc_window_h = PC_SCREEN_HEIGHT;
 int           g_pc_widescreen_stretch = 0;
 
+
+#ifdef TARGET_ANDROID
+static void pc_write_startup_stage(const char* stage) {
+    FILE* f;
+    if (!stage) return;
+    f = fopen("save/startup-stage.txt", "wb");
+    if (!f) return;
+    fprintf(f, "%s\n", stage);
+    fclose(f);
+}
+#else
+static void pc_write_startup_stage(const char* stage) { (void)stage; }
+#endif
+
 /* exe image range -- used by seg2k0 to distinguish pointers from segment addresses */
 unsigned int pc_image_base = 0;
 unsigned int pc_image_end  = 0;
@@ -308,6 +322,8 @@ int main(int argc, char* argv[]) {
     }
 #endif
 
+    pc_write_startup_stage("native-entry");
+
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             printf("Usage: AnimalCrossing [options]\n");
@@ -437,10 +453,14 @@ int main(int argc, char* argv[]) {
 #endif
 
     SDL_SetMainReady();
+    pc_write_startup_stage("settings");
     pc_settings_load();
     pc_keybindings_load();
+    pc_write_startup_stage("platform-init");
     pc_platform_init();
+    pc_write_startup_stage("disc-init");
     pc_disc_init();
+    pc_write_startup_stage("assets-init");
     if (!pc_assets_init()) {
 #ifdef TARGET_ANDROID
         const char* msg =
@@ -460,10 +480,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    pc_write_startup_stage("language-init");
     pc_language_init(g_pc_settings.language);
 
+    pc_write_startup_stage("ac-entry");
     ac_entry();                         /* sets HotStartEntry = &entry */
+    pc_write_startup_stage("boot-main");
     boot_main(argc, (const char**)argv); /* full init → HotStartEntry → game loop */
+    pc_write_startup_stage("clean-exit");
 
     pc_language_shutdown();
     pc_disc_shutdown();

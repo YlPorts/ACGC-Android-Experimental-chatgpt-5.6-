@@ -6205,11 +6205,31 @@ static void apply_audio_arc_header(ArcHeader* dst, const u8* raw, int expected_e
 static int load_audio_override(const char* code) {
     char header_path[PC_LANG_PATH_MAX];
     char rom_path[PC_LANG_PATH_MAX];
+    char enable_path[PC_LANG_PATH_MAX];
+    FILE* enable_file;
     u8* raw = NULL;
     u32 raw_size = 0;
     u32 rom_size = 0;
 
     if (!code || strcmp(code, "en") == 0) return 0;
+
+    /* R3 safety gate: regional audio is experimental and must never activate
+     * merely because a pack happens to contain audio files. A stale/incomplete
+     * pack must still boot with the USA audio. To opt in for testing, create
+     * languages/<code>/audio/enable_pal_audio.flag. */
+    snprintf(enable_path, sizeof(enable_path),
+             "languages/%s/audio/enable_pal_audio.flag", code);
+    enable_file = fopen(enable_path, "rb");
+    if (!enable_file) {
+        printf("[Language/Audio] PAL audio files present or absent; experimental audio disabled by default for '%s'\n", code);
+        return 0;
+    }
+    fclose(enable_file);
+
+    /* Only now touch the original audio header tables. Normal language-pack
+     * use therefore never reads or writes them during startup. */
+    snapshot_audio_headers_originals();
+
     snprintf(header_path, sizeof(header_path), "languages/%s/audio/audio_headers.bin", code);
     snprintf(rom_path, sizeof(rom_path), "languages/%s/audio/audiorom.img", code);
     if (!audio_file_size(rom_path, &rom_size)) return 0;
@@ -6457,8 +6477,9 @@ void pc_language_init(const char* code) {
 
     snapshot_graphics_originals();
     restore_graphics_originals();
-    snapshot_audio_headers_originals();
-    restore_audio_headers_originals();
+    /* Do not touch audio header memory on normal startup. Only an explicitly
+     * opted-in regional audio test may snapshot/replace those tables. */
+    if (s_audio_override_enabled) restore_audio_headers_originals();
     clear_resources();
     clear_item_language();
     clear_ui_strings();
@@ -6510,7 +6531,7 @@ void pc_language_init(const char* code) {
 
 void pc_language_shutdown(void) {
     restore_graphics_originals();
-    restore_audio_headers_originals();
+    if (s_audio_override_enabled) restore_audio_headers_originals();
     clear_resources();
     clear_item_language();
     clear_ui_strings();
