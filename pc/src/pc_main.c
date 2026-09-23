@@ -3,6 +3,7 @@
 #include "pc_gx_internal.h"
 #include "pc_texture_pack.h"
 #include "pc_settings.h"
+#include "pc_language.h"
 #include "pc_keybindings.h"
 #include "pc_assets.h"
 #include "pc_disc.h"
@@ -64,28 +65,26 @@ void pc_platform_init(void) {
 #endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-#if defined(PC_ENHANCEMENTS) && !defined(TARGET_ANDROID)
+#if defined(PC_ENHANCEMENTS)
     if (g_pc_settings.msaa > 0) {
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, g_pc_settings.msaa);
     }
 #endif
 
-    {
-        Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
-        int win_w = g_pc_settings.window_width;
-        int win_h = g_pc_settings.window_height;
-        if (g_pc_settings.fullscreen == 1) {
-            flags |= SDL_WINDOW_FULLSCREEN;
-        } else if (g_pc_settings.fullscreen == 2) {
-            flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
-        }
-        g_pc_window = SDL_CreateWindow(
-            PC_WINDOW_TITLE,
-            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-            win_w, win_h, flags
-        );
+    Uint32 window_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
+    int win_w = g_pc_settings.window_width;
+    int win_h = g_pc_settings.window_height;
+    if (g_pc_settings.fullscreen == 1) {
+        window_flags |= SDL_WINDOW_FULLSCREEN;
+    } else if (g_pc_settings.fullscreen == 2) {
+        window_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
     }
+    g_pc_window = SDL_CreateWindow(
+        PC_WINDOW_TITLE,
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        win_w, win_h, window_flags
+    );
     if (!g_pc_window) {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
         SDL_Quit();
@@ -93,9 +92,28 @@ void pc_platform_init(void) {
     }
 
     g_pc_gl_context = SDL_GL_CreateContext(g_pc_window);
+#if defined(PC_ENHANCEMENTS)
+    /* Some mobile GPUs reject the requested multisample framebuffer. Retry
+     * without MSAA instead of leaving the user with a black screen/crash. */
+    if (!g_pc_gl_context && g_pc_settings.msaa > 0) {
+        fprintf(stderr, "MSAA %dx unavailable, retrying without MSAA: %s\n",
+                g_pc_settings.msaa, SDL_GetError());
+        SDL_DestroyWindow(g_pc_window);
+        g_pc_window = NULL;
+        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
+        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
+        g_pc_settings.msaa = 0;
+        g_pc_window = SDL_CreateWindow(
+            PC_WINDOW_TITLE,
+            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+            win_w, win_h, window_flags
+        );
+        if (g_pc_window) g_pc_gl_context = SDL_GL_CreateContext(g_pc_window);
+    }
+#endif
     if (!g_pc_gl_context) {
         fprintf(stderr, "SDL_GL_CreateContext failed: %s\n", SDL_GetError());
-        SDL_DestroyWindow(g_pc_window);
+        if (g_pc_window) SDL_DestroyWindow(g_pc_window);
         SDL_Quit();
         exit(1);
     }
@@ -274,9 +292,11 @@ int SDL_main(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
 #endif
 #ifdef TARGET_ANDROID
-    /* Java's launcher copies the user's disc image and shaders into the
-     * app-private files directory. Keep all relative PC-port paths (rom,
-     * save, settings.ini, shader_cache.bin) inside that directory. */
+    /* Java keeps the user-owned disc image in the selected SAF folder and
+     * passes its borrowed descriptor through --rom-fd. Native code duplicates
+     * it before creating a FILE*. Relative runtime paths (texture_pack, nes_roms,
+     * save, settings.ini and shader caches) live in app-private storage and
+     * are synchronized with the selected folder by the Android layer. */
     {
         const char* storage = SDL_AndroidGetInternalStoragePath();
         if (!storage || chdir(storage) != 0) {
@@ -292,6 +312,8 @@ int main(int argc, char* argv[]) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             printf("Usage: AnimalCrossing [options]\n");
             printf("  --verbose, -v       Enable diagnostic output\n");
+            printf("  --rom PATH          Read the GameCube disc image from PATH\n");
+            printf("  --rom-fd FD         Read the disc from an Android file descriptor\n");
             printf("  --no-framelimit     Alias for --framelimit 0 (uncapped)\n");
             printf("  --framelimit N      Set the target frame rate (default 60, 0 = uncapped)\n");
             printf("  --profile [N]       Print frame profiler summary every N frames (default 120)\n");
@@ -302,6 +324,11 @@ int main(int argc, char* argv[]) {
             printf("  --uber-shader       Disable shader specialization (single uber shader)\n");
             printf("  --help, -h          Show this help message\n");
             return 0;
+        } else if (strcmp(argv[i], "--rom") == 0 && i + 1 < argc) {
+            pc_disc_set_path(argv[++i]);
+        } else if (strcmp(argv[i], "--rom-fd") == 0 && i + 1 < argc) {
+            int fd = atoi(argv[++i]);
+            if (fd >= 0) pc_disc_set_fd(fd);
         } else if (strcmp(argv[i], "--framelimit") == 0) {
             if (i + 1 < argc && argv[i + 1][0] != '-') {
                 int v = atoi(argv[i + 1]);
@@ -415,10 +442,17 @@ int main(int argc, char* argv[]) {
     pc_platform_init();
     pc_disc_init();
     if (!pc_assets_init()) {
+#ifdef TARGET_ANDROID
+        const char* msg =
+            "No game data found.\n\n"
+            "Return to the Android launcher and verify that a compatible "
+            "Animal Crossing disc image is inside roms/.";
+#else
         const char* msg =
             "No game data found.\n\n"
             "Animal Crossing needs the original GameCube ROM to run.\n"
-            "Place a disc image (.iso, .gcm, or .ciso) to the \"rom\" subfolder.";
+            "Place a disc image (.iso, .gcm, or .ciso) in the rom/ subfolder.";
+#endif
         fprintf(stderr, "[PC] %s\n", msg);
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
                                  "Animal Crossing - Missing ROM", msg, g_pc_window);
@@ -426,9 +460,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    pc_language_init(g_pc_settings.language);
+
     ac_entry();                         /* sets HotStartEntry = &entry */
     boot_main(argc, (const char**)argv); /* full init → HotStartEntry → game loop */
 
+    pc_language_shutdown();
     pc_disc_shutdown();
     pc_platform_shutdown();
     return 0;

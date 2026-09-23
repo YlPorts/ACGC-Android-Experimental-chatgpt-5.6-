@@ -4,6 +4,9 @@
 #include "m_warning_ovl.h"
 #include "m_lib.h"
 #include "m_font.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 #include "m_msg.h"
 #include "m_string.h"
 #include "m_diary.h"
@@ -2577,8 +2580,12 @@ static void mED_editor_ovl_draw(Submenu* submenu, GAME* game) {
 #if defined(TARGET_PC) && defined(KEYBOARD_TYPING)
     {
         extern int g_pc_typing_mode;
-        static u8 str_on[]  = "Keyboard Typing (Tab): On";
-        static u8 str_off[] = "Keyboard Typing (Tab): Off";
+        static u8 str_on[26]  = "Keyboard Typing (Tab): On";
+        static u8 str_off[27] = "Keyboard Typing (Tab): Off";
+#ifdef TARGET_PC
+        pc_language_ui_copy(str_on, sizeof(str_on), "editor.keyboard_typing_on", "Keyboard Typing (Tab): On");
+        pc_language_ui_copy(str_off, sizeof(str_off), "editor.keyboard_typing_off", "Keyboard Typing (Tab): Off");
+#endif
         u8* str = g_pc_typing_mode ? str_on  : str_off;
         int len = (g_pc_typing_mode ? sizeof(str_on) : sizeof(str_off)) - 1; /* drop NUL */
         f32 scale = 0.6f;

@@ -1125,14 +1125,14 @@ void pc_texture_pack_shutdown(void) {
 }
 
 int pc_texture_pack_active(void) {
-    return g_texpack_active;
+    return g_texpack_active && g_pc_settings.texture_pack_enabled;
 }
 
 GLuint pc_texture_pack_lookup(const void* data, int data_size,
                               int w, int h, unsigned int fmt,
                               const void* tlut_data, int tlut_entries, int tlut_is_be,
                               int* out_w, int* out_h) {
-    if (!g_texpack_active || !data || data_size <= 0) return 0;
+    if (!g_texpack_active || !g_pc_settings.texture_pack_enabled || !data || data_size <= 0) return 0;
 
     int hash_size = gc_texture_data_size(w, h, fmt);
     if (hash_size > data_size) hash_size = data_size;

@@ -1,6 +1,7 @@
 /* pc_gx.c - GX API → OpenGL 3.3: state management, vertex submission, draw dispatch */
 #include "pc_gx_internal.h"
 #include "pc_profiler.h"
+#include "pc_settings.h"
 #include <stddef.h>
 static GLushort quad_index_buf[(PC_GX_MAX_VERTS / 4) * 6];
 #include <math.h>
@@ -84,16 +85,49 @@ static void pc_gx_uniform_matrix3(GLint location, const float* row_major) {
 PCGXState g_gx;
 
 #ifdef PC_ENHANCEMENTS
-/* Aspect correction: factor = gc_aspect/actual_aspect, offset = content left edge in GC coords */
+/* Aspect correction: factor = GameCube aspect / selected content aspect.
+ * The content viewport is fitted inside the physical Android surface so
+ * fixed 4:3, 16:9 and 21:9 modes never stretch the rendered image. */
 static float g_aspect_factor = 1.0f;
 static float g_aspect_offset = 0.0f;
 static int   g_aspect_active = 0;
+static int   g_content_x = 0;
+static int   g_content_y = 0;
+static int   g_content_w = PC_GC_WIDTH;
+static int   g_content_h = PC_GC_HEIGHT;
 
 static void pc_gx_update_aspect(void) {
-    float gc_aspect = (float)PC_GC_WIDTH / (float)PC_GC_HEIGHT;
-    float win_aspect = (float)g_pc_window_w / (float)g_pc_window_h;
-    if (win_aspect > gc_aspect + 0.01f) {
-        g_aspect_factor = gc_aspect / win_aspect;
+    const float gc_aspect = (float)PC_GC_WIDTH / (float)PC_GC_HEIGHT;
+    float window_aspect;
+    float target_aspect;
+
+    if (g_pc_window_w <= 0 || g_pc_window_h <= 0) return;
+    window_aspect = (float)g_pc_window_w / (float)g_pc_window_h;
+
+    switch (g_pc_settings.aspect_ratio) {
+        case 0: target_aspect = 4.0f / 3.0f; break;
+        case 1: target_aspect = 16.0f / 9.0f; break;
+        case 2: target_aspect = 21.0f / 9.0f; break;
+        default: target_aspect = window_aspect; break;
+    }
+
+    if (window_aspect > target_aspect) {
+        g_content_h = g_pc_window_h;
+        g_content_w = (int)((float)g_content_h * target_aspect + 0.5f);
+        if (g_content_w > g_pc_window_w) g_content_w = g_pc_window_w;
+        g_content_x = (g_pc_window_w - g_content_w) / 2;
+        g_content_y = 0;
+    } else {
+        g_content_w = g_pc_window_w;
+        g_content_h = (int)((float)g_content_w / target_aspect + 0.5f);
+        if (g_content_h > g_pc_window_h) g_content_h = g_pc_window_h;
+        g_content_x = 0;
+        g_content_y = (g_pc_window_h - g_content_h) / 2;
+    }
+
+    target_aspect = (float)g_content_w / (float)g_content_h;
+    if (target_aspect > gc_aspect + 0.01f) {
+        g_aspect_factor = gc_aspect / target_aspect;
         g_aspect_offset = (1.0f - g_aspect_factor) / 2.0f * (float)PC_GC_WIDTH;
         g_aspect_active = 1;
     } else {
@@ -424,19 +458,32 @@ void pc_gx_begin_frame(void) {
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     /* Masks were changed behind the dirty system; reapply at first flush */
     DIRTY(PC_GX_DIRTY_DEPTH | PC_GX_DIRTY_COLOR_MASK);
-#ifdef PC_ENHANCEMENTS
-    pc_gx_update_aspect();
-    glDisable(GL_SCISSOR_TEST);
-    glViewport(0, 0, g_pc_window_w, g_pc_window_h);
-    pc_gx_viewport_state_invalidate();
-#endif
 #ifdef TARGET_ANDROID
     glClearDepthf((GLfloat)g_gx.clear_depth);
 #else
     glClearDepth(g_gx.clear_depth);
 #endif
+#ifdef PC_ENHANCEMENTS
+    pc_gx_update_aspect();
+
+    /* Clear the whole physical surface to black, then clear only the fitted
+     * game area with the GX clear colour. glClear ignores the viewport, so a
+     * temporary scissor is required to keep 4:3/16:9/21:9 bars truly black. */
+    glDisable(GL_SCISSOR_TEST);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(g_content_x, g_content_y, g_content_w, g_content_h);
+    glViewport(g_content_x, g_content_y, g_content_w, g_content_h);
     glClearColor(g_gx.clear_color[0], g_gx.clear_color[1], g_gx.clear_color[2], g_gx.clear_color[3]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_SCISSOR_TEST);
+    pc_gx_viewport_state_invalidate();
+#else
+    glClearColor(g_gx.clear_color[0], g_gx.clear_color[1], g_gx.clear_color[2], g_gx.clear_color[3]);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+#endif
     pc_profiler_add_time(PC_PROF_TIMER_GX_BEGIN, prof_start);
 }
 
@@ -1358,8 +1405,8 @@ void GXSetViewport(f32 left, f32 top, f32 wd, f32 ht, f32 nearz, f32 farz) {
     g_gx.viewport[5] = farz;
 #ifdef PC_ENHANCEMENTS
     {
-        float sx = (float)g_pc_window_w / (float)PC_GC_WIDTH;
-        float sy = (float)g_pc_window_h / (float)PC_GC_HEIGHT;
+        float sx = (float)g_content_w / (float)PC_GC_WIDTH;
+        float sy = (float)g_content_h / (float)PC_GC_HEIGHT;
         float adj_left = left;
         float adj_wd = wd;
 
@@ -1374,10 +1421,10 @@ void GXSetViewport(f32 left, f32 top, f32 wd, f32 ht, f32 nearz, f32 farz) {
             }
         }
 
-        gl_x = (int)(adj_left * sx);
+        gl_x = g_content_x + (int)(adj_left * sx);
         gl_w = (int)(adj_wd * sx);
         gl_h = (int)(ht * sy);
-        gl_y = g_pc_window_h - (int)(top * sy) - gl_h;
+        gl_y = g_content_y + g_content_h - (int)(top * sy) - gl_h;
     }
 #else
     /* GX is Y-down, GL is Y-up */
@@ -1421,12 +1468,12 @@ void GXSetScissor(u32 left, u32 top, u32 wd, u32 ht) {
     g_gx.scissor[3] = ht;
 #ifdef PC_ENHANCEMENTS
     {
-        float sx = (float)g_pc_window_w / (float)PC_GC_WIDTH;
-        float sy = (float)g_pc_window_h / (float)PC_GC_HEIGHT;
-        gl_x = (int)(left * sx);
+        float sx = (float)g_content_w / (float)PC_GC_WIDTH;
+        float sy = (float)g_content_h / (float)PC_GC_HEIGHT;
+        gl_x = g_content_x + (int)(left * sx);
         gl_w = (int)(wd * sx);
         gl_h = (int)(ht * sy);
-        gl_y = g_pc_window_h - (int)(top * sy) - gl_h;
+        gl_y = g_content_y + g_content_h - (int)(top * sy) - gl_h;
     }
 #else
     /* GX is Y-down, GL is Y-up */
@@ -2093,10 +2140,10 @@ static void pc_gx_copy_tex_execute_impl(void* dest, GXBool clear) {
     if (out_wd > 4096 || out_ht > 4096) return;
 
 #ifdef PC_ENHANCEMENTS
-    /* Scale readback coordinates from GC coords to window resolution */
-    float sx = (float)g_pc_window_w / (float)PC_GC_WIDTH;
-    float sy = (float)g_pc_window_h / (float)PC_GC_HEIGHT;
-    int read_left = (int)(g_gx.tex_copy_src[0] * sx);
+    /* Scale readback coordinates from GC coords to the selected content viewport. */
+    float sx = (float)g_content_w / (float)PC_GC_WIDTH;
+    float sy = (float)g_content_h / (float)PC_GC_HEIGHT;
+    int read_left = g_content_x + (int)(g_gx.tex_copy_src[0] * sx);
     int read_top  = (int)(g_gx.tex_copy_src[1] * sy);
     int read_wd   = (int)(out_wd * sx);
     int read_ht   = (int)(out_ht * sy);
@@ -2107,6 +2154,19 @@ static void pc_gx_copy_tex_execute_impl(void* dest, GXBool clear) {
     int read_ht   = out_ht;
 #endif
 
+#ifdef PC_ENHANCEMENTS
+    if (read_left < g_content_x) {
+        read_wd -= g_content_x - read_left;
+        read_left = g_content_x;
+    }
+    if (read_top < 0) { read_ht += read_top; read_top = 0; }
+    if (read_left + read_wd > g_content_x + g_content_w)
+        read_wd = g_content_x + g_content_w - read_left;
+    if (read_top + read_ht > g_content_h) read_ht = g_content_h - read_top;
+    if (read_wd <= 0 || read_ht <= 0) return;
+
+    int gl_y = g_content_y + g_content_h - (read_top + read_ht);
+#else
     if (read_left < 0) { read_wd += read_left; read_left = 0; }
     if (read_top < 0)  { read_ht += read_top;  read_top = 0; }
     if (read_left + read_wd > g_pc_window_w) read_wd = g_pc_window_w - read_left;
@@ -2114,6 +2174,7 @@ static void pc_gx_copy_tex_execute_impl(void* dest, GXBool clear) {
     if (read_wd <= 0 || read_ht <= 0) return;
 
     int gl_y = g_pc_window_h - (read_top + read_ht);
+#endif
     if (gl_y < 0) return;
 
     size_t rgba_size = (size_t)read_wd * (size_t)read_ht * 4;

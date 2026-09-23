@@ -40,6 +40,14 @@ public final class VirtualControllerView extends View {
     private int viewHeight;
     private boolean controlsVisible;
     private boolean editMode;
+    private boolean hideWithGamepad;
+    private boolean gamepadConnected;
+    private int opacityPercent = 75;
+    private int scalePercent = 100;
+    private int stickDeadzone = 12;
+    private int stickSensitivity = 100;
+    private int cstickDeadzone = 12;
+    private int cstickSensitivity = 100;
     private Control draggedControl;
     private int draggedPointer = -1;
     private float dragOffsetX;
@@ -68,9 +76,37 @@ public final class VirtualControllerView extends View {
     public void setControlsVisible(boolean visible) {
         controlsVisible = visible;
         preferences.edit().putBoolean(PREF_VISIBLE, visible).apply();
-        if (!visible) releaseAll();
-        setVisibility(visible || editMode ? View.VISIBLE : View.GONE);
-        invalidate();
+        updateEffectiveVisibility();
+    }
+
+    public void applySettings(boolean visible, int opacity, int scale,
+                              boolean hideWhenGamepadConnected,
+                              int mainDeadzone, int mainSensitivity,
+                              int secondaryDeadzone, int secondarySensitivity) {
+        int clampedOpacity = Math.max(25, Math.min(100, opacity));
+        int clampedScale = Math.max(75, Math.min(150, scale));
+        boolean rebuild = clampedScale != scalePercent;
+
+        controlsVisible = visible;
+        opacityPercent = clampedOpacity;
+        scalePercent = clampedScale;
+        hideWithGamepad = hideWhenGamepadConnected;
+        stickDeadzone = Math.max(0, Math.min(40, mainDeadzone));
+        stickSensitivity = Math.max(50, Math.min(150, mainSensitivity));
+        cstickDeadzone = Math.max(0, Math.min(40, secondaryDeadzone));
+        cstickSensitivity = Math.max(50, Math.min(150, secondarySensitivity));
+        preferences.edit().putBoolean(PREF_VISIBLE, visible).apply();
+
+        if (rebuild && viewWidth > 0 && viewHeight > 0) {
+            rebuildControls(viewWidth, viewHeight);
+        }
+        updateEffectiveVisibility();
+    }
+
+    public void setGamepadConnected(boolean connected) {
+        if (gamepadConnected == connected) return;
+        gamepadConnected = connected;
+        updateEffectiveVisibility();
     }
 
     public boolean isEditMode() {
@@ -82,7 +118,14 @@ public final class VirtualControllerView extends View {
         editMode = editing;
         draggedControl = null;
         draggedPointer = -1;
-        setVisibility(editing || controlsVisible ? View.VISIBLE : View.GONE);
+        updateEffectiveVisibility();
+    }
+
+    private void updateEffectiveVisibility() {
+        boolean visible = editMode ||
+                (controlsVisible && !(hideWithGamepad && gamepadConnected));
+        if (!visible) releaseAll();
+        setVisibility(visible ? View.VISIBLE : View.GONE);
         invalidate();
     }
 
@@ -112,9 +155,10 @@ public final class VirtualControllerView extends View {
         draggedPointer = -1;
         unit = Math.min(width, height);
 
-        float mainRadius = unit * 0.145f;
-        float smallRadius = unit * 0.087f;
-        float buttonRadius = unit * 0.066f;
+        float scale = scalePercent / 100.0f;
+        float mainRadius = unit * 0.145f * scale;
+        float smallRadius = unit * 0.087f * scale;
+        float buttonRadius = unit * 0.066f * scale;
 
         addControl(Control.pad("STICK", mainRadius,
                 KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_S,
@@ -168,15 +212,18 @@ public final class VirtualControllerView extends View {
     private void drawControl(Canvas canvas, Control control) {
         int alpha = editMode ? (control.activePointer >= 0 ? 205 : 135)
                 : (control.activePointer >= 0 ? 150 : 78);
+        alpha = alpha * opacityPercent / 100;
+        int strokeAlpha = (editMode ? 230 : 175) * opacityPercent / 100;
         fill.setColor(Color.argb(alpha, 17, 27, 25));
         stroke.setColor(editMode
-                ? Color.argb(230, 114, 214, 161)
-                : Color.argb(175, 255, 255, 255));
+                ? Color.argb(strokeAlpha, 114, 214, 161)
+                : Color.argb(strokeAlpha, 255, 255, 255));
         canvas.drawCircle(control.cx, control.cy, control.radius, fill);
         canvas.drawCircle(control.cx, control.cy, control.radius, stroke);
 
         if (control.kind == Control.PAD) {
-            fill.setColor(Color.argb(control.activePointer >= 0 ? 190 : 115, 114, 214, 161));
+            int knobAlpha = (control.activePointer >= 0 ? 190 : 115) * opacityPercent / 100;
+            fill.setColor(Color.argb(knobAlpha, 114, 214, 161));
             canvas.drawCircle(control.cx + control.knobX, control.cy + control.knobY,
                     control.radius * 0.40f, fill);
         }
@@ -236,6 +283,7 @@ public final class VirtualControllerView extends View {
                 draggedControl.cx = event.getX(index) + dragOffsetX;
                 draggedControl.cy = event.getY(index) + dragOffsetY;
                 clampToScreen(draggedControl);
+                saveDraggedPosition();
                 invalidate();
             }
         } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
@@ -244,17 +292,18 @@ public final class VirtualControllerView extends View {
         return true;
     }
 
+    private void saveDraggedPosition() {
+        if (draggedControl == null || viewWidth <= 0 || viewHeight <= 0) return;
+        preferences.edit()
+                .putFloat(positionKey(draggedControl.label, "x"), draggedControl.cx / viewWidth)
+                .putFloat(positionKey(draggedControl.label, "y"), draggedControl.cy / viewHeight)
+                .apply();
+    }
+
     private void finishDrag(boolean save) {
         if (draggedControl != null) {
             draggedControl.activePointer = -1;
-            if (save && viewWidth > 0 && viewHeight > 0) {
-                preferences.edit()
-                        .putFloat(positionKey(draggedControl.label, "x"),
-                                draggedControl.cx / viewWidth)
-                        .putFloat(positionKey(draggedControl.label, "y"),
-                                draggedControl.cy / viewHeight)
-                        .apply();
-            }
+            if (save) saveDraggedPosition();
         }
         draggedControl = null;
         draggedPointer = -1;
@@ -267,6 +316,22 @@ public final class VirtualControllerView extends View {
         float marginY = Math.min(control.radius + padding, viewHeight * 0.48f);
         control.cx = Math.max(marginX, Math.min(viewWidth - marginX, control.cx));
         control.cy = Math.max(marginY, Math.min(viewHeight - marginY, control.cy));
+    }
+
+    private float directionThreshold(Control control) {
+        if ("STICK".equals(control.label)) {
+            return tunedThreshold(stickDeadzone, stickSensitivity);
+        }
+        if ("C".equals(control.label)) {
+            return tunedThreshold(cstickDeadzone, cstickSensitivity);
+        }
+        return 0.23f;
+    }
+
+    private float tunedThreshold(int deadzone, int sensitivity) {
+        // Defaults (12% and 100%) preserve the former 0.23 radius threshold.
+        float threshold = (0.11f + deadzone / 100.0f) * 100.0f / sensitivity;
+        return Math.max(0.08f, Math.min(0.55f, threshold));
     }
 
     private Control findControl(float x, float y) {
@@ -389,7 +454,7 @@ public final class VirtualControllerView extends View {
             knobX = dx;
             knobY = dy;
 
-            float threshold = radius * 0.23f;
+            float threshold = radius * view.directionThreshold(this);
             setDirections(dy < -threshold, dy > threshold,
                     dx < -threshold, dx > threshold, view);
         }

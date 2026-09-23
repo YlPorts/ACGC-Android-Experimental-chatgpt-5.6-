@@ -1,4 +1,7 @@
 #include "m_mscore_ovl.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 #include "m_submenu_ovl.h"
 #include "audio.h"
@@ -122,7 +125,7 @@ static mMS_note_moji_c note_moji[] = {
 
 static u8 mMS_str_title[13] = "Are you sure?";
 static u8 mMS_str_ok[3] = "Yes";
-static u8 mMS_str_cancel[2] = "No";
+static u8 mMS_str_cancel[4] = "No  ";
 
 static void mMS_move_Move(Submenu* submenu, mSM_MenuInfo_c* menu_info) {
     submenu->overlay->move_Move_proc(submenu, menu_info);
@@ -371,6 +374,11 @@ extern Gfx sen_win_wakuT_model[];
 extern Gfx sen_win_cursor_model[];
 
 static void mMS_set_dl(Submenu* submenu, mSM_MenuInfo_c* menu_info, GAME* game) {
+#ifdef TARGET_PC
+    pc_language_ui_copy(mMS_str_title, sizeof(mMS_str_title), "confirm.are_you_sure", "Are you sure?");
+    pc_language_ui_copy(mMS_str_ok, sizeof(mMS_str_ok), "common.yes", "Yes");
+    pc_language_ui_copy(mMS_str_cancel, sizeof(mMS_str_cancel), "common.no", "No");
+#endif
     static rgb_t color_data[] = { { 255, 0, 0 }, { 0, 0, 255 } };
     static rgb_t sel_str_color_data[] = { { 140, 160, 205 }, { 70, 70, 225 } };
     static u8* mMS_start_button_tex_tbl[] = { start_tex_rgb_ia8, start2_tex_rgb_ia8 };

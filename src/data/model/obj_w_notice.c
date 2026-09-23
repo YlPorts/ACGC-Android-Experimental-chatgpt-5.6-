@@ -43,8 +43,10 @@ Gfx obj_w_noticeT_gfx_model[] = {
 };
 
 #ifdef TARGET_PC
+#include "pc_language.h"
 extern void pc_load_asset(const char*, void*, unsigned int, unsigned int, int, int);
 void _pc_load_src_data_model_obj_w_notice_c(void) {
     pc_load_asset("assets/obj_w_notice/obj_notice_pal.bin", obj_notice_pal, 0x20, 0x3F36A0, 0, 1);
+    pc_language_register_graphic("notice_winter.bin", obj_w_notice_tex, sizeof(obj_w_notice_tex));
 }
 #endif

@@ -1,4 +1,7 @@
 #include "m_repay_ovl.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 #include "m_common_data.h"
 #include "m_font.h"
@@ -207,6 +210,10 @@ static void mRP_set_num_str(GAME* game, u32 num, rgba_t* str_col_p, f32 x, f32 y
 static void mRP_set_character_dl(Submenu* submenu, GAME* game, f32 x, f32 y) {
   static u8 kingaku_str[9] = "Your Loan";
   static u8 kettei_str[2] = "OK";
+#ifdef TARGET_PC
+  pc_language_ui_copy(kingaku_str, sizeof(kingaku_str), "repay.your_loan", "Your Loan");
+  pc_language_ui_copy(kettei_str, sizeof(kettei_str), "common.ok", "OK");
+#endif
   static rgba_t money_col  = { 100,  40, 255, 255 };
   static rgba_t repay_col  = {  70, 120, 245, 255 };
   static rgba_t select_col = { 215,   0,   0, 255 };

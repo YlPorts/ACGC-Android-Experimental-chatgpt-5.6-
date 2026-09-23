@@ -1,4 +1,7 @@
 #include "m_editEndChk_ovl.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 #include "audio.h"
 #include "m_common_data.h"
@@ -182,6 +185,12 @@ static void mEE_set_answer_field(Submenu* submenu, GRAPH* graph, mEE_win_data_c*
 }
 
 static void mEE_set_question_character(Submenu* submenu, GRAPH* graph, GAME* game, f32 x, f32 y) {
+#ifdef TARGET_PC
+    pc_language_ui_copy(mEE_str_table, sizeof(mEE_str_table), "confirm.is_this_ok", "Is this OK?");
+    pc_language_ui_copy(mEE_str_data0, sizeof(mEE_str_data0), "common.yes", "Yes");
+    pc_language_ui_copy(mEE_str_data1, sizeof(mEE_str_data1), "confirm.rewrite", "Rewrite");
+    pc_language_ui_copy(mEE_str_data2, sizeof(mEE_str_data2), "confirm.throw_out", "Throw it out");
+#endif
     (*submenu->overlay->set_char_matrix_proc)(graph);
     mFont_SetLineStrings(game, mEE_str_table, sizeof(mEE_str_table), 107.0f + x, 194.0f - y, 80, 80, 230, 255, FALSE,
                          TRUE, 1.0f, 1.0f, mFont_MODE_POLY);

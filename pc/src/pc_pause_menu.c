@@ -1,6 +1,7 @@
 #include "pc_platform.h"
 #include "pc_pause_menu.h"
 #include "pc_settings_menu.h"
+#include "pc_language.h"
 #include "pc_menu_util.h"
 #include "pc_text_draw.h"
 
@@ -208,9 +209,14 @@ int pc_pause_menu_handle_event(const SDL_Event* e) {
 /* Drawing */
 
 static void draw_main_page(struct game_s* game) {
-    static const char* items[MAIN_ITEM_COUNT] = { "Resume", "Settings", "Quit Game" };
-
-    pc_menu_draw_centered(game, "- Paused -", 80.0f, 255, 255, 255, 255, 1.0f);
+    const char* items[MAIN_ITEM_COUNT] = {
+        pc_language_ui_lookup("menu.resume", "Resume"),
+        pc_language_ui_lookup("menu.settings", "Settings"),
+        pc_language_ui_lookup("menu.quit_game", "Quit Game")
+    };
+    pc_menu_draw_centered(game,
+        pc_language_ui_lookup("pause.title", "- Paused -"),
+        80.0f, 255, 255, 255, 255, 1.0f);
 
     f32 y = 110.0f;
     f32 line_h = 18.0f;
@@ -224,10 +230,16 @@ static void draw_main_page(struct game_s* game) {
 }
 
 static void draw_confirm_page(struct game_s* game) {
-    pc_menu_draw_centered(game, "- Quit Game -", 80.0f, 255, 255, 255, 255, 1.0f);
-    pc_menu_draw_centered(game, "Are you sure you want to quit?",
-                          115.0f, 230, 230, 230, 255, 1.0f);
-    pc_menu_draw_two_choice(game, "No", "Yes", confirm_sel, 150.0f);
+    pc_menu_draw_centered(game,
+        pc_language_ui_lookup("pause.quit_title", "- Quit Game -"),
+        80.0f, 255, 255, 255, 255, 1.0f);
+    pc_menu_draw_centered(game,
+        pc_language_ui_lookup("pause.quit_question", "Are you sure you want to quit?"),
+        115.0f, 230, 230, 230, 255, 1.0f);
+    pc_menu_draw_two_choice(game,
+        pc_language_ui_lookup("common.no", "No"),
+        pc_language_ui_lookup("common.yes", "Yes"),
+        confirm_sel, 150.0f);
 }
 
 void pc_pause_menu_draw(struct game_s* game) {

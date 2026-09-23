@@ -3,6 +3,9 @@
 #include "audio.h"
 #include "sys_matrix.h"
 #include "m_font.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 typedef struct warning_ovl_line_s {
   f32 pos_x;
@@ -88,6 +91,58 @@ static u8 wr_that_have_nothing_to_do[23] = "that have nothing to do";
 static u8 wr_with_secret_codes[18] = "with secret codes!";
 
 static u8 wr_this_item[10] = "this item!";
+
+#ifdef TARGET_PC
+static void mWR_localize_fixed_text(void) {
+#define WR_UI(dst, key, fallback) pc_language_ui_copy((dst), (int)sizeof(dst), (key), (fallback))
+  WR_UI(wr_You_cant_hold, "warning.cant_hold", "You can't hold");
+  WR_UI(wr_any_more_letters_Want_to, "warning.more_letters", "any more letters! Want to");
+  WR_UI(wr_throw_away_some_old_ones, "warning.throw_old", "throw away some old ones?");
+  WR_UI(wr_Yes, "common.yes", "Yes");
+  WR_UI(wr_No, "common.no", "No");
+  WR_UI(wr_You_cant_pull_out_a_present, "warning.cant_pull_present", "You can't pull out a present");
+  WR_UI(wr_when_your_item_screen_is_full, "warning.item_screen_full", "when your item screen is full!");
+  WR_UI(wr_You_cant_carry, "warning.cant_carry", "You can't carry");
+  WR_UI(wr_more_than_99999_Bells, "warning.max_bells", "more than 99,999 Bells!");
+  WR_UI(wr_You_cant_mail, "warning.cant_mail", "You can't mail");
+  WR_UI(wr_turnips_or_living_things, "warning.turnips_living", "turnips or living things!");
+  WR_UI(wr_someone_elses_belongings, "warning.others_belongings", "someone else's belongings!");
+  WR_UI(wr_a_wrapped_present, "warning.wrapped_present", "a wrapped present!");
+  WR_UI(wr_any_more_letters, "warning.any_more_letters", "any more letters,");
+  WR_UI(wr_so_you_cant_write_a_new_one, "warning.cant_write_new", "so you can't write a new one!");
+  WR_UI(wr_Your_item_screen_is_full, "warning.your_item_screen_full", "Your item screen is full,");
+  WR_UI(wr_so_you_cant_use_a_pattern, "warning.cant_use_pattern", "so you can't use a pattern!");
+  WR_UI(wr_an_exercise_card, "warning.exercise_card", "an exercise card!");
+  WR_UI(wr_You_cant_put, "warning.cant_put", "You can't put");
+  WR_UI(wr_any_more_items_out, "warning.more_items_out", "any more items out!");
+  WR_UI(wr_any_more_items_there, "warning.more_items_there", "any more items there!");
+  WR_UI(wr_This_diary_is_locked, "warning.diary_locked", "This diary is locked!");
+  WR_UI(wr_You_cant_pull_anything_out, "warning.cant_pull_anything", "You can't pull anything out");
+  WR_UI(wr_Theres_already_music_in_there, "warning.music_already", "There's already music in there!");
+  WR_UI(wr_You_cant_drop, "warning.cant_drop", "You can't drop");
+  WR_UI(wr_any_more_items_here, "warning.more_items_here", "any more items here!");
+  WR_UI(wr_You_cant_plant, "warning.cant_plant", "You can't plant");
+  WR_UI(wr_anything_else_here, "warning.anything_else_here", "anything else here!");
+  WR_UI(wr_You_cant_open_a_bag, "warning.cant_open_bag", "You can't open a bag");
+  WR_UI(wr_unless_you_have_room, "warning.unless_room", "unless you have room");
+  WR_UI(wr_for_three_more_items, "warning.three_more_items", "for three more items!");
+  WR_UI(wr_You_cant_plant_anything_here, "warning.cant_plant_here", "You can't plant anything here!");
+  WR_UI(wr_You_cant_put_a_sign_up_here, "warning.cant_sign_here", "You can't put a sign up here!");
+  WR_UI(wr_You_can_put_signs_up_only, "warning.signs_only", "You can put signs up only");
+  WR_UI(wr_in_your_own_village, "warning.own_village", "in your own village!");
+  WR_UI(wr_You_cant_put_signs_on_the_island, "warning.no_island_signs", "You can't put signs on the island!");
+  WR_UI(wr_You_cant_leave, "warning.cant_leave", "You can't leave");
+  WR_UI(wr_this_NES_on_the_island, "warning.nes_island", "this NES on the island!");
+  WR_UI(wr_You_dont_have_room, "warning.no_room", "You don't have room");
+  WR_UI(wr_to_write_any_more, "warning.write_any_more", "to write any more.");
+  WR_UI(wr_You_entered_letters, "warning.entered_letters", "You entered letters");
+  WR_UI(wr_that_have_nothing_to_do, "warning.nothing_to_do", "that have nothing to do");
+  WR_UI(wr_with_secret_codes, "warning.secret_codes", "with secret codes!");
+  WR_UI(wr_this_item, "warning.this_item", "this item!");
+#undef WR_UI
+}
+#endif
+
 
 /* Line definitions */
 #define mWR_LINE(str, pos_x, pos_y) { (pos_x), (pos_y), str, ARRAY_COUNT(str) }
@@ -460,6 +515,9 @@ extern void mWR_warning_ovl_set_proc(Submenu* submenu) {
 }
 
 extern void mWR_warning_ovl_init(Submenu* submenu) {
+#ifdef TARGET_PC
+  mWR_localize_fixed_text();
+#endif
   Submenu_Overlay_c* overlay = submenu->overlay;
   mWR_Ovl_c* warning_ovl = overlay->warning_ovl;
 

@@ -104,8 +104,14 @@ Gfx obj_e_mikanbox_copyrightT_model2[] = {
 };
 
 #ifdef TARGET_PC
+#include "pc_language.h"
 extern void pc_load_asset(const char*, void*, unsigned int, unsigned int, int, int);
 void _pc_load_src_data_model_obj_e_mikanbox_c(void) {
     pc_load_asset("assets/obj_e_mikanbox/obj_e_mikanbox_v.bin", obj_e_mikanbox_v, 0x1C0, 0x818B40, 0, 2);
+    /* Text-bearing end/copyright artwork loaded from the USA disc by pc_assets. */
+    pc_language_register_graphic("copyright.bin", copyright_tex, sizeof(copyright_tex));
+    pc_language_register_graphic("end_notice1.bin", end_notice1_tex, sizeof(end_notice1_tex));
+    pc_language_register_graphic("end_notice2.bin", end_notice2_tex, sizeof(end_notice2_tex));
+    pc_language_register_graphic("end_notice3.bin", end_notice3_tex, sizeof(end_notice3_tex));
 }
 #endif

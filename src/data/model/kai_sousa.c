@@ -689,7 +689,17 @@ Gfx kai_sousa_spaceT_model[] = {
 
 #ifdef TARGET_PC
 extern void pc_load_asset(const char*, void*, unsigned int, unsigned int, int, int);
+#include "pc_language.h"
 void _pc_load_src_data_model_kai_sousa_c(void) {
     pc_load_asset("assets/kai_sousa/kai_sousa_button3_tex.bin", kai_sousa_button3_tex, 0x100, 0x6F1100, 0, 0);
+    /* Text-bearing editor textures. Packs may override these exact-size buffers. */
+    pc_language_register_graphic("editor_letters.bin", kai_sousa_letters_tex, sizeof(kai_sousa_letters_tex));    
+    pc_language_register_graphic("editor_punct.bin", kai_sousa_punct_tex, sizeof(kai_sousa_punct_tex));
+    pc_language_register_graphic("editor_icons.bin", kai_sousa_icons_tex, sizeof(kai_sousa_icons_tex));
+    pc_language_register_graphic("editor_ok.bin", kai_sousa_ok_tex, sizeof(kai_sousa_ok_tex));
+    pc_language_register_graphic("editor_backspace.bin", kai_sousa_backspace_tex, sizeof(kai_sousa_backspace_tex));
+    pc_language_register_graphic("editor_space.bin", kai_sousa_space_tex, sizeof(kai_sousa_space_tex));
+    pc_language_register_graphic("editor_caps.bin", kai_sousa_caps_tex_rgb_i4, sizeof(kai_sousa_caps_tex_rgb_i4));
+    pc_language_register_graphic("editor_small.bin", kai_sousa_small_tex_rgb_i4, sizeof(kai_sousa_small_tex_rgb_i4));
 }
 #endif

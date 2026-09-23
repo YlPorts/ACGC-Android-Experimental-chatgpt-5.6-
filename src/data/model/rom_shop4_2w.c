@@ -295,11 +295,15 @@ Gfx rom_shop4_2w_model[] = {
 };
 
 #ifdef TARGET_PC
+#include "pc_language.h"
 extern void pc_load_asset(const char*, void*, unsigned int, unsigned int, int, int);
 void _pc_load_src_data_model_rom_shop4_2w_c(void) {
     pc_load_asset("assets/rom_shop4_2w/rom_shop4_1_floor_tex_pal.bin", rom_shop4_1_floor_tex_pal, 0x20, 0xC3CC60, 0, 1);
     pc_load_asset("assets/rom_shop4_2w/rom_shop4_1_table_tex_pal.bin", rom_shop4_1_table_tex_pal, 0x20, 0xC3CCA0, 0, 1);
     pc_load_asset("assets/rom_shop4_2w/rom_shop4_2_sign01_us_tex_pal.bin", rom_shop4_2_sign01_us_tex_pal, 0x20, 0xC3CD00, 0, 1);
-    pc_load_asset("assets/rom_shop4_2w/rom_shop4_2_us_sign01_tex.bin", rom_shop4_2_us_sign01_tex, 0x400, 0xC3E0C0, 0, 0);
+    pc_load_asset("assets/rom_shop4_2w/rom_shop4_2_us_sign01_tex.bin", rom_shop4_2_us_sign01_tex, 0x400, 0xC3E0C0, 0, 0); 
+    /* Region-specific shop signage. Both CI4 pixels and TLUT must be overridden together. */
+    pc_language_register_graphic_pair("shop4_sign_palette.bin", (u8*)rom_shop4_2_sign01_us_tex_pal, sizeof(rom_shop4_2_sign01_us_tex_pal),
+                                      "shop4_sign.bin", rom_shop4_2_us_sign01_tex, sizeof(rom_shop4_2_us_sign01_tex));
 }
 #endif

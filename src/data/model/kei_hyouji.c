@@ -291,9 +291,11 @@ Gfx kei_hyouji_model[] = {
 };
 
 #ifdef TARGET_PC
+#include "pc_language.h"
 extern void pc_load_asset(const char*, void*, unsigned int, unsigned int, int, int);
 void _pc_load_src_data_model_kei_hyouji_c(void) {
     pc_load_asset("assets/kei_hyouji/kei_win_quit_tex.bin", kei_win_quit_tex, 0x200, 0x7A1660, 0, 0);
+  pc_language_register_graphic("diary_quit.bin", kei_win_quit_tex, 0x200);
     pc_load_asset("assets/kei_hyouji/std_tex.bin", std_tex, 0x800, 0x7A2060, 0, 0);
     pc_load_asset("assets/kei_hyouji/yaji.bin", yaji, 0x80, 0xB5C980, 0, 0);
     pc_load_asset("assets/kei_hyouji/ct_tex.bin", ct_tex, 0x400, 0xB5BD80, 0, 0);

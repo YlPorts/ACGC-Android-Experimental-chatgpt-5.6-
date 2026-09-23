@@ -1,6 +1,7 @@
 /* pc_dvd.c - DVD filesystem: reads from disc image (CISO/ISO/GCM) or extracted files */
 #include "pc_platform.h"
 #include "pc_disc.h"
+#include "pc_language.h"
 
 typedef struct {
     char gameName[4];
@@ -102,6 +103,38 @@ BOOL DVDFastOpen(s32 entrynum, void* fileInfo) {
     }
 
     const char* path = dvd_entry_table[entrynum].path;
+
+    /* Language packs may override the regional audio ROM without modifying the
+     * user's USA disc image.  Keep this deliberately narrow: only audiorom.img
+     * is eligible, and a missing/invalid override simply falls back to the disc. */
+    if (pc_language_is_external() &&
+        (strcmp(path, "/audiorom.img") == 0 || strcmp(path, "audiorom.img") == 0)) {
+        const char* code = pc_language_code();
+        if (code != NULL && code[0] != '\0' && strcmp(code, "en") != 0) {
+            char langpath[768];
+            FILE* langfp;
+            long langlen;
+            snprintf(langpath, sizeof(langpath), "languages/%s/audio/audiorom.img", code);
+            langfp = fopen(langpath, "rb");
+            if (langfp != NULL) {
+                if (fseek(langfp, 0, SEEK_END) == 0) {
+                    langlen = ftell(langfp);
+                    if (langlen > 0 && (unsigned long)langlen <= 64u * 1024u * 1024u &&
+                        fseek(langfp, 0, SEEK_SET) == 0) {
+                        memset(fileInfo, 0, 0x3C);
+                        *dvd_fi_fp(fileInfo) = langfp;
+                        *dvd_fi_startAddr(fileInfo) = 0;
+                        *dvd_fi_length(fileInfo) = (u32)langlen;
+                        printf("[Language] Using regional audio override: %s (%ld bytes)\n",
+                               langpath, langlen);
+                        return TRUE;
+                    }
+                }
+                fclose(langfp);
+                printf("[Language] Ignoring invalid regional audio override: %s\n", langpath);
+            }
+        }
+    }
 
     /* Try disc image first */
     if (pc_disc_is_open()) {

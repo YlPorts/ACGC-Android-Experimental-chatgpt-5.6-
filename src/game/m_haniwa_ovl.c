@@ -9,6 +9,9 @@
 #include "m_hand_ovl.h"
 #include "m_font.h"
 #include "m_haniwaPortrait_ovl.h"
+#ifdef TARGET_PC
+#include "pc_language.h"
+#endif
 
 static mHW_Ovl_c haniwa_ovl_data;
 
@@ -60,6 +63,22 @@ static void mHW_make_cond_message(Submenu* submenu, int msg_idx) {
     static u8 mes_mise[20] = "That's display only.";
     static u8 mes_beru[5] = "It's\xD3";
     static u8 mes_beru2[5] = "Bells";
+
+#ifdef TARGET_PC
+    pc_language_ui_copy(mes_ikaga, sizeof(mes_ikaga), "haniwa.help", "How can I help?");
+    pc_language_ui_copy(mes_dono, sizeof(mes_dono), "haniwa.choose", "Choose one.");
+    pc_language_ui_copy(mes_dono2, sizeof(mes_dono2), "haniwa.may_help", "May I help you?");
+    pc_language_ui_copy(mes_oikura, sizeof(mes_oikura), "haniwa.how_much", "How much?");
+    pc_language_ui_copy(mes_kasiko, sizeof(mes_kasiko), "haniwa.got_it", "Got it!");
+    pc_language_ui_copy(mes_dorewo, sizeof(mes_dorewo), "haniwa.choose", "Choose one.");
+    pc_language_ui_copy(mes_mou, sizeof(mes_mou), "haniwa.no_room", "You don't have room.");
+    pc_language_ui_copy(mes_okane, sizeof(mes_okane), "haniwa.cant_afford", "You can't afford that.");
+    pc_language_ui_copy(mes_maido, sizeof(mes_maido), "haniwa.thank_you", "Thank you very much!");
+    pc_language_ui_copy(mes_tada, sizeof(mes_tada), "haniwa.free", "That's free");
+    pc_language_ui_copy(mes_tada2, sizeof(mes_tada2), "haniwa.give_away", "Give Away");
+    pc_language_ui_copy(mes_mise, sizeof(mes_mise), "haniwa.display_only", "That's display only.");
+    pc_language_ui_copy(mes_beru2, sizeof(mes_beru2), "common.bells", "Bells");
+#endif
 
     static mHW_msg_c mes_data_tbl[] = {
         // clang-format off
