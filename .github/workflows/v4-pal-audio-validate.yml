@@ -1,0 +1,78 @@
+name: Validate PAL matched audio headers
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v4-pal-audio-matched-headers
+    paths:
+      - ".audiofix/**"
+      - ".github/workflows/v4-pal-audio-validate.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Apply regional-audio overlay
+        run: |
+          set -euo pipefail
+          test -f .audiofix/acgc_audio_overlay.tar.gz
+          tar -xzf .audiofix/acgc_audio_overlay.tar.gz -C .
+          rm -rf .audiofix
+
+      - name: Ensure SDL2
+        run: |
+          if [ ! -f android/SDL/CMakeLists.txt ]; then
+            rm -rf android/SDL
+            git clone --depth 1 --branch release-2.30.11 https://github.com/libsdl-org/SDL.git android/SDL
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Build 32-bit APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Verify ABI and APK
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          CHECK="$RUNNER_TEMP/acgc-audio-r2-check"
+          mkdir -p "$CHECK"
+          unzip -q "$APK" "lib/*" -d "$CHECK"
+          test -f "$CHECK/lib/armeabi-v7a/libmain.so"
+          readelf -h "$CHECK/lib/armeabi-v7a/libmain.so" | grep -Eq 'Class:[[:space:]]+ELF32'
+          readelf -h "$CHECK/lib/armeabi-v7a/libmain.so" | grep -Eq 'Machine:[[:space:]]+ARM'
+          sha256sum "$APK"
+
+      - name: Commit tested source changes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No source changes"
+            exit 0
+          fi
+          git commit -m "V4: load PAL audiorom with matching regional headers"
+          git push origin HEAD:v4-pal-audio-matched-headers
