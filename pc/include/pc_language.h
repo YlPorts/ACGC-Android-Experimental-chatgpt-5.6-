@@ -20,6 +20,11 @@ int pc_language_read_aram(u32 address, u8* dst, u32 size);
 
 const char* pc_language_code(void);
 int pc_language_is_external(void);
+/* Optional PAL regional audio. The override is active only when both
+ * audio/audiorom.img and audio/audio_headers.bin validate as a matched pair. */
+int pc_language_audio_override_enabled(void);
+const char* pc_language_audio_rom_path(void);
+void pc_language_audio_fallback_to_usa(void);
 const char* pc_language_ui_text(const char* en, const char* es, const char* fr, const char* de, const char* it);
 /* Look up a fixed UI string from languages/<code>/ui_strings.ini.
  * Missing keys fall back to the caller-provided English text. */
@@ -28,8 +33,6 @@ void pc_language_ui_copy(u8* dst, int capacity, const char* key, const char* fal
 /* Register a writable ROM-derived texture that may be replaced by an exact-size
  * languages/<code>/graphics/<filename> file. Missing files keep USA artwork. */
 void pc_language_register_graphic(const char* filename, u8* target, u32 size);
-/* Register built-in writable texture targets; actual translations remain external. */
-void pc_language_register_default_graphics(void);
 /* Register two graphical resources that must either both load or both keep the USA originals. */
 void pc_language_register_graphic_pair(const char* filename_a, u8* target_a, u32 size_a,
                                        const char* filename_b, u8* target_b, u32 size_b);
