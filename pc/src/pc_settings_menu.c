@@ -64,6 +64,7 @@ static const Item tab_video_items[] = {
     { "VSync",        ITEM_VSYNC,        0 },
     { "FPS maximos",  ITEM_MAX_FPS,      0 },
     { "Calidad",      ITEM_MSAA,         1 },
+    { "Filtrado",     ITEM_TEXTURE_FILTERING, 0 },
     { "Texturas",     ITEM_TEXTURE_PACK, 1 },
 };
 
@@ -164,6 +165,7 @@ static const char* localized_item_label(int id, const char* fallback) {
         case ITEM_VSYNC: return "VSync";
         case ITEM_MAX_FPS: return pc_language_ui_lookup("settings.max_fps", "Max FPS");
         case ITEM_MSAA: return pc_language_ui_lookup("settings.quality", "Quality");
+        case ITEM_TEXTURE_FILTERING: return pc_language_ui_lookup("settings.texture_filtering", "Texture filter");
         case ITEM_TEXTURE_PACK: return pc_language_ui_lookup("settings.textures", "Textures");
         case ITEM_MASTER_VOLUME: return pc_language_ui_lookup("settings.volume", "Volume");
         case ITEM_STICK_SENSITIVITY: return pc_language_ui_lookup("settings.stick_sensitivity", "Sensitivity");
@@ -586,7 +588,7 @@ static void item_format(int id, char* buf, size_t n) {
                                               "< 21:9 >");
             break;
         case ITEM_TEXTURE_FILTERING:
-            snprintf(buf, n, "%s", s_pending.texture_filtering ? "< On >" : "< Off >");
+            snprintf(buf, n, "%s", s_pending.texture_filtering ? pc_language_ui_lookup("settings.value.on", "< On >") : pc_language_ui_lookup("settings.value.off", "< Off >"));
             break;
         case ITEM_RES:
             snprintf(buf, n, "< %dx%d >", s_pending.window_width, s_pending.window_height);
