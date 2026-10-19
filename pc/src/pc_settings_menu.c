@@ -21,6 +21,7 @@ enum {
     ITEM_VSYNC,
     ITEM_MAX_FPS,
     ITEM_MSAA,
+    ITEM_TEXTURE_FILTERING,
     ITEM_ASPECT,
     ITEM_RES,
     ITEM_TEXTURES,
@@ -63,6 +64,7 @@ static const Item tab_video_items[] = {
     { "VSync",        ITEM_VSYNC,        0 },
     { "FPS maximos",  ITEM_MAX_FPS,      0 },
     { "Calidad",      ITEM_MSAA,         1 },
+    { "Filtrado",     ITEM_TEXTURE_FILTERING, 0 },
     { "Texturas",     ITEM_TEXTURE_PACK, 1 },
 };
 
@@ -106,6 +108,7 @@ static const Item tab_video_items[] = {
     { "VSync",      ITEM_VSYNC,    0 },
     { "Max FPS",    ITEM_MAX_FPS,  0 },
     { "MSAA",       ITEM_MSAA,     1 },
+    { "Texture filter", ITEM_TEXTURE_FILTERING, 0 },
     { "Resolution", ITEM_RES,      0 },
     { "Textures",   ITEM_TEXTURES, 1 },
 };
@@ -162,6 +165,7 @@ static const char* localized_item_label(int id, const char* fallback) {
         case ITEM_VSYNC: return "VSync";
         case ITEM_MAX_FPS: return pc_language_ui_lookup("settings.max_fps", "Max FPS");
         case ITEM_MSAA: return pc_language_ui_lookup("settings.quality", "Quality");
+        case ITEM_TEXTURE_FILTERING: return pc_language_ui_lookup("settings.texture_filtering", "Texture filter");
         case ITEM_TEXTURE_PACK: return pc_language_ui_lookup("settings.textures", "Textures");
         case ITEM_MASTER_VOLUME: return pc_language_ui_lookup("settings.volume", "Volume");
         case ITEM_STICK_SENSITIVITY: return pc_language_ui_lookup("settings.stick_sensitivity", "Sensitivity");
@@ -382,6 +386,7 @@ static void recompute_dirty(void) {
         (s_pending.vsync            != g_pc_settings.vsync) ||
         (s_pending.max_fps          != g_pc_settings.max_fps) ||
         (s_pending.msaa             != g_pc_settings.msaa) ||
+        (s_pending.texture_filtering != g_pc_settings.texture_filtering) ||
         (s_pending.aspect_ratio     != g_pc_settings.aspect_ratio) ||
         (s_pending.window_width     != g_pc_settings.window_width) ||
         (s_pending.window_height    != g_pc_settings.window_height) ||
@@ -448,6 +453,9 @@ static void item_cycle(int id, int dir) {
             int v = s_pending.aspect_ratio + (dir > 0 ? 1 : 2);
             s_pending.aspect_ratio = v % 3;
         } break;
+        case ITEM_TEXTURE_FILTERING:
+            s_pending.texture_filtering = !s_pending.texture_filtering;
+            break;
         case ITEM_RES:
             pc_settings_cycle_resolution(&s_pending.window_width, &s_pending.window_height, dir);
             break;
@@ -579,6 +587,9 @@ static void item_format(int id, char* buf, size_t n) {
                 s_pending.aspect_ratio == 1 ? "< 16:9 >" :
                                               "< 21:9 >");
             break;
+        case ITEM_TEXTURE_FILTERING:
+            snprintf(buf, n, "%s", s_pending.texture_filtering ? pc_language_ui_lookup("settings.value.on", "< On >") : pc_language_ui_lookup("settings.value.off", "< Off >"));
+            break;
         case ITEM_RES:
             snprintf(buf, n, "< %dx%d >", s_pending.window_width, s_pending.window_height);
             break;
@@ -664,6 +675,8 @@ static int item_changed(int id) {
         case ITEM_VSYNC:      return s_pending.vsync            != g_pc_settings.vsync;
         case ITEM_MAX_FPS:    return s_pending.max_fps          != g_pc_settings.max_fps;
         case ITEM_MSAA:       return s_pending.msaa             != g_pc_settings.msaa;
+        case ITEM_TEXTURE_FILTERING:
+            return s_pending.texture_filtering != g_pc_settings.texture_filtering;
         case ITEM_ASPECT:     return s_pending.aspect_ratio     != g_pc_settings.aspect_ratio;
         case ITEM_RES:        return (s_pending.window_width  != g_pc_settings.window_width) ||
                                      (s_pending.window_height != g_pc_settings.window_height);
@@ -1140,7 +1153,7 @@ static void draw_settings_page(struct game_s* game) {
     f32 vx = 200.0f;
     f32 y_tab = 50.0f;
     f32 y0    = 78.0f;
-    f32 line_h = 16.0f;
+    f32 line_h = 15.0f;
 
     pc_menu_draw_centered(game, pc_language_ui_lookup("settings.title", "- Settings -"),
                           30.0f, 255, 255, 255, 255, 1.0f);

@@ -12,6 +12,7 @@ typedef struct {
     int vsync;            /* 0=off, 1=on */
     int max_fps;          /* 0=uncapped, otherwise frame limiter target */
     int msaa;             /* 0=off, 2/4/8=samples */
+    int texture_filtering; /* 0=force nearest-neighbor, 1=use the game's texture filtering */
     int aspect_ratio;     /* 0=4:3, 1=16:9, 2=21:9, 3=automatic window aspect */
     int preload_textures; /* 0=off (load on demand), 1=on (load all at startup), 2=on + cache file */
     int texture_pack_enabled; /* 0=original textures, 1=allow replacements */

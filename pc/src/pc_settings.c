@@ -26,6 +26,7 @@ PCSettings g_pc_settings = {
     .max_fps       = 60,
     .msaa          = PC_DEFAULT_MSAA,
     .aspect_ratio  = PC_DEFAULT_ASPECT,
+    .texture_filtering = 1,
     .preload_textures = 0,
     .texture_pack_enabled = 1,
     .disable_resetti = 0,
@@ -85,6 +86,9 @@ static const char* DEFAULT_SETTINGS =
     "texture_pack_enabled = 1\n"
     "\n"
 #ifndef TARGET_ANDROID
+    "# Texture filtering: 0 = nearest-neighbor, 1 = use the game's filtering\n"
+    "texture_filtering = 1\n"
+    "\n"
     "[Enhancements]\n"
     "# Preload HD textures at startup: 0 = off (load on demand), 1 = preload, 2 = preload + cache file (fastest)\n"
     "preload_textures = 0\n"
@@ -160,6 +164,8 @@ static void apply_setting(const char* key, const char* value) {
     } else if (strcmp(key, "msaa") == 0) {
         if (val == 0 || val == 2 || val == 4 || val == 8)
             g_pc_settings.msaa = val;
+    } else if (strcmp(key, "texture_filtering") == 0) {
+        if (val == 0 || val == 1) g_pc_settings.texture_filtering = val;
     } else if (strcmp(key, "aspect_ratio") == 0) {
         if (val >= 0 && val <= 3) g_pc_settings.aspect_ratio = val;
     } else if (strcmp(key, "preload_textures") == 0) {
@@ -323,6 +329,9 @@ void pc_settings_save(void) {
     fprintf(f, "texture_pack_enabled = %d\n", g_pc_settings.texture_pack_enabled);
     fprintf(f, "\n");
 #ifndef TARGET_ANDROID
+    fprintf(f, "# Texture filtering: 0 = nearest-neighbor, 1 = use the game's filtering\n");
+    fprintf(f, "texture_filtering = %d\n", g_pc_settings.texture_filtering);
+    fprintf(f, "\n");
     fprintf(f, "[Enhancements]\n");
     fprintf(f, "# Preload HD textures at startup: 0 = off (load on demand), 1 = preload, 2 = preload + cache file (fastest)\n");
     fprintf(f, "preload_textures = %d\n", g_pc_settings.preload_textures);
