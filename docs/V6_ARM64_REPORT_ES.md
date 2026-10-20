@@ -28,8 +28,8 @@ La inspección anterior a las modificaciones está en [la auditoría inicial](V6
 - GX conserva sus objetos compactos y recupera las direcciones de imágenes/TLUT
   mediante referencias. No se eliminan shaders, rutas GLES, DDS ni modos de
   aspecto. No se han probado en una GPU Mali.
-- JSystem usa aritmética de direcciones nativa. Los bloques del heap mantienen
-  alineación de 16 bytes. Las entradas RARC conservan exactamente 20 bytes y su
+- JSystem usa aritmética de direcciones nativa. En ARM64, los bloques y la granularidad de asignación del heap usan 16 bytes;
+  ARM32 conserva sus encabezados y granularidad originales de cuatro bytes. Las entradas RARC conservan exactamente 20 bytes y su
   campo reservado de cuatro bytes, incluso dentro del proceso de 64 bits.
 - ARQ transporta MRAM sin truncamiento, conserva offsets ARAM y completa los
   campos de la solicitud antes de invocar su callback.
@@ -83,14 +83,14 @@ para páginas de 16 KB.
 | Paquete completo | Verificado | Todas las `.so`, ABI, dependencias, JNI, firma y zipalign |
 | Layout persistente V5 | 98/98 en ambas ABI | Comparación con baseline ARM32 intacta |
 | Serializador de partidas | Ida/vuelta cruzada ARM32 ↔ AArch64 | Payload válido sintético de 148128 bytes |
-| Pruebas de componentes | 12 casos en host/ARM32/AArch64 | ASan/UBSan en host; ejecutables ARM bajo QEMU |
+| Pruebas de componentes | 13 casos en host/ARM32/AArch64 | ASan/UBSan en host; ejecutables ARM bajo QEMU |
 | Workflow | actionlint correcto | Además de compilación/configuración Gradle local |
 
-Los doce casos cubren referencias concurrentes con direcciones superiores a 4 GB,
+Los trece casos cubren referencias concurrentes con direcciones superiores a 4 GB,
 GBI estático/dinámico/binario, ARAM y callbacks, comandos de escenas, Multi5 y
 SafeBoot con packs sintéticos, bancos NEOS, IBNK/WSYS originales incluidos en el
 código, traducción de direcciones DOL, colas y copia DSP, NES, serializador y
-entradas RARC/bloques del heap. La prueba NES ejecuta el **wrapper de producción**
+entradas RARC y asignación/redimensionado/liberación real del heap con tamaños y alineaciones variados. La prueba NES ejecuta el **wrapper de producción**
 y su CPU/PPU/APU con una ROM NROM escrita para la prueba: comprueba cálculo,
 controlador, WRAM, generación de framebuffer y entrega de audio con su puntero
 completo. El test no invoca el render GLES; proporciona un adaptador para la restauración

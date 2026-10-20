@@ -25,6 +25,9 @@ def main():
     parser.add_argument("--sanitize", action="store_true")
     parser.add_argument("--output", type=Path, default=ROOT / "build/native-tests")
     args = parser.parse_args()
+    if args.sanitize:
+        os.environ["ASAN_OPTIONS"] = "detect_leaks=1:halt_on_error=1"
+        os.environ["UBSAN_OPTIONS"] = "halt_on_error=1:print_stacktrace=1"
     if args.static and args.sanitize:
         parser.error("static cross tests and host sanitizers are separate runs")
     out = args.output.resolve()
@@ -81,10 +84,19 @@ def main():
     run(cxx + ["-std=c++17"] + flags + ["tests/native/pointer32_test.cpp", out / "address.o", "-o", executable])
     run(runner + [executable])
     results.append({"test": "pointer32", "passed": True})
+    executable = out / "heap_test"
+    kernel = "src/static/JSystem/JKernel/"
+    sources = [kernel + n + ".cpp" for n in ("JKRExpHeap", "JKRHeap", "JKRDisposer")]
+    sources += ["src/static/JSystem/JSupport/JSUList.cpp"]
+    run(cxx + ["-std=c++17"] + flags + ["-ffunction-sections", "-fdata-sections",
+        "tests/native/heap_test.cpp"] + sources + ["-Wl,--gc-sections", "-o", executable])
+    run(runner + [executable])
+    results.append({"test": "heap", "passed": True})
+    print(f"PASS {bits}-bit heap allocation/resize/free stress", flush=True)
     report = {"bits": bits, "compiler": args.cc, "runner": args.runner or "host",
               "sanitizers": args.sanitize, "gameplay_tested": False, "tests": results}
     (out / "results.json").write_text(json.dumps(report, indent=2) + "\n")
-    print(f"PASS {bits}-bit pointer32; {len(results)} isolated tests passed", flush=True)
+    print(f"PASS {bits}-bit suite; {len(results)} isolated tests passed", flush=True)
 
 
 if __name__ == "__main__":

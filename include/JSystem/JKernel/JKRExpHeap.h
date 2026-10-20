@@ -7,7 +7,11 @@
 #ifdef __cplusplus
 class JKRExpHeap : public JKRHeap {
   public:
-    class alignas(16) CMemBlock {
+    class
+#ifdef PC_NATIVE_64
+        alignas(16)
+#endif
+        CMemBlock {
       public:
         CMemBlock* allocBack(u32, u8, u8, u8, u8);
         CMemBlock* allocFore(u32, u8, u8, u8, u8);

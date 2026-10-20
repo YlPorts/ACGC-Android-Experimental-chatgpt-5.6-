@@ -9,7 +9,7 @@ int main() {
     static_assert(sizeof(JKRArchive::SDIFileEntry) == 20, "RARC entries retain the original wire stride");
     static_assert(offsetof(JKRArchive::SDIFileEntry, mData) == 16, "RARC reserved runtime slot stays at 16");
     JKRExpHeap::CMemBlock blocks[2] = {};
-    assert(alignof(JKRExpHeap::CMemBlock) == 16);
+    assert(alignof(JKRExpHeap::CMemBlock) == (sizeof(void*) == 8 ? 16 : 4));
     assert(sizeof(blocks[0]) == (sizeof(void*) == 8 ? 32 : 16));
     assert(JKRExpHeap::CMemBlock::getBlock(blocks[0].getContent()) == &blocks[0]);
     int value = 42;

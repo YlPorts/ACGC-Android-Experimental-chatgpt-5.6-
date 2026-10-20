@@ -4,6 +4,13 @@
 #include "JSystem/JUtility/JUTConsole.h"
 #include "JSystem/JMacro.h"
 
+#ifdef PC_NATIVE_64
+static constexpr u32 HEAP_ALLOCATION_ALIGNMENT = alignof(JKRExpHeap::CMemBlock);
+#else
+/* Preserve the original ARM32 block layout and four-byte allocation granularity. */
+static constexpr u32 HEAP_ALLOCATION_ALIGNMENT = 4;
+#endif
+
 static u32 whatdo;
 static u32 whatdo2;
 static u32 DBfoundSize;
@@ -151,7 +158,7 @@ void* JKRExpHeap::allocFromHead(u32 size, int align) {
     CMemBlock* newFreeBlock;
     CMemBlock* newUsedBlock;
 
-    size = ALIGN_NEXT(size, 4);
+    size = ALIGN_NEXT(size, HEAP_ALLOCATION_ALIGNMENT);
     int foundSize = -1;
     u32 foundOffset = 0;
     CMemBlock* foundBlock = nullptr;
@@ -248,7 +255,7 @@ void* JKRExpHeap::allocFromHead(u32 size, int align) {
 }
 
 void* JKRExpHeap::allocFromHead(u32 size) {
-    size = ALIGN_NEXT(size, 4);
+    size = ALIGN_NEXT(size, HEAP_ALLOCATION_ALIGNMENT);
     int foundSize = -1;
     CMemBlock* foundBlock = nullptr;
 
@@ -332,7 +339,7 @@ void* JKRExpHeap::allocFromTail(u32 size, int align) {
 }
 
 void* JKRExpHeap::allocFromTail(u32 size) {
-    u32 size2 = ALIGN_NEXT(size, 4);
+    u32 size2 = ALIGN_NEXT(size, HEAP_ALLOCATION_ALIGNMENT);
     CMemBlock* foundBlock = nullptr;
     for (CMemBlock* block = mTail; block; block = block->mPrev) {
         if (block->mAllocatedSpace >= size2) {
@@ -424,7 +431,7 @@ s32 JKRExpHeap::do_resize(void* ptr, u32 size) {
         unlock();
         return -1;
     }
-    size = ALIGN_NEXT(size, 4);
+    size = ALIGN_NEXT(size, HEAP_ALLOCATION_ALIGNMENT);
     if (size == block->mAllocatedSpace) {
         unlock();
         return size;
