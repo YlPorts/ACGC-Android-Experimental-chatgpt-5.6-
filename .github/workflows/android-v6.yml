@@ -102,7 +102,11 @@ jobs:
         with:
           submodules: recursive
       - name: Verify pinned SDL2 checkout
-        run: test "$(git -C android/SDL rev-parse HEAD)" = fa24d868ac2f8fd558e4e914c9863411245db8fd
+        run: |
+          test "$(git -C android/SDL rev-parse HEAD)" = fa24d868ac2f8fd558e4e914c9863411245db8fd
+          printf '%s\n' \
+            '2c23278a62dc9f96ab11bee897d9f53e6479d6419135e4560ce822a6431df5e5  android/SDL/android-project/gradle/wrapper/gradle-wrapper.jar' \
+            '2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046  android/gradle/wrapper/gradle-wrapper.jar' | sha256sum --check
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -110,7 +114,17 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
+      - name: Validate the official app wrapper and pinned SDL wrapper
+        uses: gradle/actions/wrapper-validation@v4
+        with:
+          # This is SDL 2.30.11's unused wrapper, verified against upstream
+          # fa24d868ac2f8fd558e4e914c9863411245db8fd. The app uses the official
+          # Gradle 8.11.1 wrapper, which must pass the normal official checksum list.
+          allow-checksums: 2c23278a62dc9f96ab11bee897d9f53e6479d6419135e4560ce822a6431df5e5
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          # The complete validation above includes SDL's explicitly pinned checksum.
+          validate-wrappers: false
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ccache

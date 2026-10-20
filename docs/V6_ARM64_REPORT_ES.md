@@ -132,6 +132,11 @@ Products/artifacts de la candidata firmada por CI:
 - `Animal-Crossing-Android-V6.0-ARM64.apk`
 - `Animal-Crossing-Android-V6.0-ARM32.apk`
 
+El wrapper de la aplicación es el oficial de Gradle 8.11.1, verificado contra su
+SHA-256 publicado. El wrapper no ejecutado que acompaña a SDL se verifica contra
+el hash del commit upstream fijado; la validación completa sólo permite esa
+excepción explícita para la dependencia, no wrappers desconocidos nuevos.
+
 El workflow no modifica `master` ni publica una release estable automáticamente.
 Los workflows manuales de 32 y 64 bits llaman a la misma validación con su ABI
 real; el antiguo workflow cuyo nombre decía 64 bits pero seleccionaba ARM32 se
