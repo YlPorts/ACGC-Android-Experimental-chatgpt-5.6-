@@ -270,7 +270,7 @@ static void mMS_move_Wait(Submenu* submenu, mSM_MenuInfo_c* menu_info) {
             mscore_ovl->cursor_idx = 0;
             menu_info->proc_status = mSM_OVL_PROC_PLAY;
         } else {
-            mMld_SetSaveMelody((u8*)menu_info->data3);
+            mMld_SetSaveMelody(PC_REF_PTR(u8*, menu_info->data3));
             submenu->overlay->move_chg_base_proc(menu_info, mSM_MOVE_OUT_TOP);
         }
     }

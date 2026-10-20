@@ -5,6 +5,8 @@
 /* On PC, we don't have MSL_C - use standard math */
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
+#include <alloca.h>
 #include <malloc.h>  /* for alloca() */
 /* Metrowerks __alloca is a compiler built-in; map to standard alloca on PC */
 #define __alloca alloca
@@ -18,6 +20,7 @@
 
 #include <dolphin/types.h>
 #include "macros.h"
+#include "pc_pointer_ref.h"
 
 #define VER_GAFE01_00 0
 #define VER_GAFU01_00 1
@@ -36,11 +39,19 @@
 
 typedef signed char s8;
 typedef signed short s16;
+#if defined(TARGET_PC) && __SIZEOF_LONG__ == 8
+typedef signed int s32;
+#else
 typedef signed long s32;
+#endif
 typedef signed long long s64;
 typedef unsigned char u8;
 typedef unsigned short u16;
+#if defined(TARGET_PC) && __SIZEOF_LONG__ == 8
+typedef unsigned int u32;
+#else
 typedef unsigned long u32;
+#endif
 #ifndef TARGET_PC
 #ifndef _SIZE_T_DEF
 #define _SIZE_T_DEF
@@ -92,8 +103,15 @@ typedef u32 unknown;
 // #define AT_ADDRESS(x) __attribute__((section(".data." #x)))
 // #endif
 
+#if defined(TARGET_PC) && defined(__GNUC__)
+/* Preserve the operand's width: a u32 alignment must not clear the upper
+ * half of a native address. Console offsets keep their original u32 width. */
+#define ALIGN_PREV(u, align) ((u) & ~((__typeof__((u) + 0))((align) - 1)))
+#define ALIGN_NEXT(u, align) (((u) + ((align) - 1)) & ~((__typeof__((u) + 0))((align) - 1)))
+#else
 #define ALIGN_PREV(u, align) (u & (~(align - 1)))
 #define ALIGN_NEXT(u, align) ((u + (align - 1)) & (~(align - 1)))
+#endif
 #define IS_ALIGNED(X, N) (((X) & ((N) - 1)) == 0)
 #define IS_NOT_ALIGNED(X, N) (((X) & ((N) - 1)) != 0)
 

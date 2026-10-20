@@ -70,7 +70,7 @@ bool JKRHeap::initArena(char** outUserRamStart, u32* outUserRamSize, int numHeap
     OSSetArenaLo(arenaHi);
     OSSetArenaHi(arenaHi);
     *outUserRamStart = (char*)arenaLo;
-    *outUserRamSize = (u32)arenaHi - (u32)arenaLo;
+    *outUserRamSize = (u32)((u8*)arenaHi - (u8*)arenaLo);
     return true;
 }
 
@@ -207,7 +207,7 @@ JKRHeap* JKRHeap::findAllHeap(void* memory) const {
 }
 
 // generates __as__25JSUTreeIterator<7JKRHeap>FP17JSUTree<7JKRHeap> and __ct__25JSUTreeIterator<7JKRHeap>Fv, remove this
-void JKRHeap::dispose_subroutine(u32 begin, u32 end) {
+void JKRHeap::dispose_subroutine(uintptr_t begin, uintptr_t end) {
     JSUListIterator<JKRDisposer> last_iterator;
     JSUListIterator<JKRDisposer> next_iterator;
     JSUListIterator<JKRDisposer> iterator;
@@ -231,14 +231,14 @@ void JKRHeap::dispose_subroutine(u32 begin, u32 end) {
 }
 
 bool JKRHeap::dispose(void* memory, u32 size) {
-    u32 begin = (u32)memory;
-    u32 end = (u32)memory + size;
+    uintptr_t begin = (uintptr_t)memory;
+    uintptr_t end = (uintptr_t)memory + size;
     dispose_subroutine(begin, end);
     return false;
 }
 
 void JKRHeap::dispose(void* begin, void* end) {
-    dispose_subroutine((u32)begin, (u32)end);
+    dispose_subroutine((uintptr_t)begin, (uintptr_t)end);
 }
 
 void JKRHeap::dispose() {

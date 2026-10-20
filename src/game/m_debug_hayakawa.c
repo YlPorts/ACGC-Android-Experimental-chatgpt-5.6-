@@ -15,6 +15,9 @@
  */
 
 #include "m_debug_hayakawa.h"
+#ifdef TARGET_PC
+#include "pc_guest_memory.h"
+#endif
 
 #include "m_debug.h"
 #include "libu64/u64types.h"
@@ -361,12 +364,24 @@ extern void debug_hayakawa_move(pad_t* pad) {
             switch (GETREG(HREG, HREG_STATE_ARGS_START)) {
                 /* Load */
                 case 1: {
+                    #ifdef TARGET_PC
+                    u8 value;
+                    u32 guest = (u32)GETREG(HREG, 82) * 0x100000u - 0x80000000u;
+                    if (pc_guest_read(guest, &value, 1)) SETREG(HREG, 83, value);
+#else
                     SETREG(HREG, 83, *(u8*)(GETREG(HREG, 82) * 0x100000 - 0x80000000));
+#endif
                 } break;
 
                 /* Store */
                 case 2: {
+                    #ifdef TARGET_PC
+                    u8 value = (u8)GETREG(HREG, 83);
+                    u32 guest = (u32)GETREG(HREG, 82) * 0x100000u - 0x80000000u;
+                    pc_guest_write(guest, &value, 1);
+#else
                     *(u8*)(GETREG(HREG, 82) * 0x100000 - 0x80000000) = (u8)GETREG(HREG, 83);
+#endif
                 } break;
             }
         } break;

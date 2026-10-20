@@ -387,7 +387,7 @@ static void Player_actor_LoadOrDestruct_Item(ACTOR* actor, int kind, int anim_id
 #if VERSION >= VER_GAFU01_00
 static void Player_actor_CorrectSomething_net(ACTOR* actor, const xyz_t* pos) {
     PLAYER_ACTOR* player = (PLAYER_ACTOR*)actor;
-    TOOLS_ACTOR* label = (TOOLS_ACTOR*)player->item_net_catch_label;
+    TOOLS_ACTOR* label = PC_REF_PTR(TOOLS_ACTOR*, player->item_net_catch_label);
 
     if (label != NULL && player->item_net_catch_type == mPlayer_NET_CATCH_TYPE_INSECT && !player->item_net_catch_correct_pos_set) {
         player->item_net_catch_correct_pos = *pos;
@@ -397,7 +397,7 @@ static void Player_actor_CorrectSomething_net(ACTOR* actor, const xyz_t* pos) {
 #else
 static void Player_actor_CorrectSomething_net(ACTOR* actor, const xyz_t* pos) {
     PLAYER_ACTOR* player = (PLAYER_ACTOR*)actor;
-    TOOLS_ACTOR* label = (TOOLS_ACTOR*)player->item_net_catch_label;
+    TOOLS_ACTOR* label = PC_REF_PTR(TOOLS_ACTOR*, player->item_net_catch_label);
 
     if (label != NULL && player->item_net_catch_type == mPlayer_NET_CATCH_TYPE_INSECT) {
         Matrix_push();

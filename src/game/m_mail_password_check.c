@@ -1,3 +1,7 @@
+#ifdef TARGET_PC
+#include <stdlib.h>
+#define __abs abs
+#endif
 #include "m_mail_password_check.h"
 
 #include "m_font.h"

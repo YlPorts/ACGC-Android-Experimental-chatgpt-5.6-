@@ -114,7 +114,7 @@ void AIInit(u8* stack) {
     }
 }
 
-void AIInitDMA(u32 addr, u32 size) {
+void AIInitDMA(uintptr_t addr, u32 size) {
     s16* src = (s16*)(uintptr_t)addr;
     u32 n_samples = size / sizeof(s16);
     n_samples &= ~1u; /* whole stereo frames */
@@ -157,7 +157,7 @@ void pc_audio_set_paused(int paused) {
     if (audio_device != 0) SDL_PauseAudioDevice(audio_device, paused ? 1 : 0);
 }
 
-u32  AIGetDMAStartAddr(void) { return 0; }
+uintptr_t AIGetDMAStartAddr(void) { return 0; }
 u16  AIGetDMALength(void) { return 0; }
 u32  AIGetStreamTrigger(void) { return 0; }
 u32  AIGetStreamSampleCount(void) { return 0; }
@@ -206,6 +206,10 @@ void pc_audio_shutdown(void) {
         SDL_WaitThread(audio_producer_thread, NULL);
         audio_producer_thread = NULL;
     }
+#ifdef PC_NATIVE_64
+    extern void pc_audio_reset_native_banks(void);
+    pc_audio_reset_native_banks();
+#endif
     if (audio_device != 0) {
         SDL_CloseAudioDevice(audio_device);
         audio_device = 0;

@@ -1,5 +1,10 @@
 /* pc_aram.c - GC's 16MB auxiliary RAM, replaced with a malloc'd buffer */
-#include "pc_platform.h"
+#include "pc_types.h"
+#include "dolphin/ar.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#define PC_ARAM_SIZE (16 * 1024 * 1024)
 
 static u8* aram_base = NULL;
 static u32 aram_alloc_ptr = 0;
@@ -22,6 +27,7 @@ u32 ARGetBaseAddress(void) { return 0; }
 u32 ARGetSize(void) { return PC_ARAM_SIZE; }
 
 u32 ARAlloc(u32 size) {
+    if (size > PC_ARAM_SIZE) return 0;
     u32 aligned_size = (size + 31) & ~31; /* 32-byte align */
     if (aram_alloc_ptr + aligned_size > PC_ARAM_SIZE) {
         fprintf(stderr, "[PC/ARAM] Out of ARAM! Requested %lu, used %lu/%u\n",
@@ -33,16 +39,17 @@ u32 ARAlloc(u32 size) {
     return addr;
 }
 
-void ARFree(u32* addr) {
-    (void)addr; /* bump allocator, no-op */
+u32 ARFree(u32* addr) {
+    (void)addr; /* bump allocator, same lifetime as the ARAM arena */
+    return 0;
 }
 
 /* type 0 = MRAM→ARAM, type 1 = ARAM→MRAM. params are always (type, mram, aram). */
-void ARStartDMA(u32 type, u32 mram_addr, u32 aram_addr, u32 length) {
+void ARStartDMA(u32 type, uintptr_t mram_addr, u32 aram_addr, u32 length) {
     if (!aram_base) return;
 
     /* some code passes (aram_base + offset) instead of just the offset */
-    u32 base = (u32)(uintptr_t)aram_base;
+    uintptr_t base = (uintptr_t)aram_base;
     if (aram_addr >= base && aram_addr < base + PC_ARAM_SIZE) {
         aram_addr -= base;
     }
@@ -68,14 +75,22 @@ BOOL ARCheckInit(void) { return aram_base != NULL; }
 /* ARQ - synchronous wrapper around ARStartDMA.
  * ARQPostRequest's source/dest order differs from ARStartDMA's, so we remap. */
 void ARQInit(void) {}
-void ARQPostRequest(void* req, u32 owner, u32 type, u32 prio,
-                    u32 source, u32 dest, u32 length, void* callback) {
+void ARQPostRequest(ARQRequest* req, u32 owner, u32 type, u32 prio,
+                    uintptr_t source, uintptr_t dest, u32 length, ARQCallback callback) {
+    req->next = NULL;
+    req->owner = owner;
+    req->type = type;
+    req->priority = prio;
+    req->source = source;
+    req->dest = dest;
+    req->length = length;
+    req->callback = callback;
     if (type == 0) {
         ARStartDMA(type, source, dest, length); /* source=mram, dest=aram */
     } else {
         ARStartDMA(type, dest, source, length); /* source=aram, dest=mram — swapped */
     }
-    if (callback) ((void (*)(u32))callback)((u32)(uintptr_t)req);
+    if (callback) callback((uintptr_t)req);
 }
 
 void ARQFlushQueue(void) {}

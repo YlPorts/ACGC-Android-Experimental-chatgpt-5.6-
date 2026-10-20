@@ -70,6 +70,7 @@ struct Ibnk_ {
  */
 struct Vmap_ {
 	u8 mBaseVelocity; // _00
+    u8 _01[3];       // _01, preserve the original combined WSYS/wave ID at _04
 	s16 mWsysID;      // _04
 	s16 mWaveID;      // _06
 	f32 mVolume;      // _08

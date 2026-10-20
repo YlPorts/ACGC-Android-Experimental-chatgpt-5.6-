@@ -16,14 +16,14 @@ static u32 global_id = 0;
  * Address:	8000E9C0
  * Size:	000034
  */
-static void ARAMFinish(u32 msg)
+static void ARAMFinish(uintptr_t msg)
 {
 	// STACK_PAD_VAR(1);
-	u32* REF_param_1;
+	uintptr_t* REF_param_1;
 
 	REF_param_1         = &msg;
 	ARQRequest* request = (ARQRequest*)msg;
-	OSSendMessage((OSMessageQueue*)request->owner, (OSMessage)1, OS_MESSAGE_BLOCK);
+	OSSendMessage(PC_REF_PTR(OSMessageQueue*, request->owner), (OSMessage)1, OS_MESSAGE_BLOCK);
 }
 
 /*
@@ -42,9 +42,9 @@ static void ARAM_TO_ARAM_DMA(u32 src, u32 dst, u32 totalSize)
 	while (totalSize != 0) {
 		burstSize = totalSize >= DMABUFFER_SIZE ? DMABUFFER_SIZE : totalSize;
 
-		ARQPostRequest(&request, (u32)&msgQueue, ARQ_TYPE_ARAM_TO_MRAM, ARQ_PRIORITY_LOW, src, (u32)dmabuffer, burstSize, &ARAMFinish);
+		ARQPostRequest(&request, PC_PTR_REF(&msgQueue), ARQ_TYPE_ARAM_TO_MRAM, ARQ_PRIORITY_LOW, src, (uintptr_t)dmabuffer, burstSize, &ARAMFinish);
 		OSReceiveMessage(&msgQueue, NULL, OS_MESSAGE_BLOCK);
-		ARQPostRequest(&request, (u32)&msgQueue, ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_LOW, (u32)dmabuffer, dst, burstSize, &ARAMFinish);
+		ARQPostRequest(&request, PC_PTR_REF(&msgQueue), ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_LOW, (uintptr_t)dmabuffer, dst, burstSize, &ARAMFinish);
 		OSReceiveMessage(&msgQueue, NULL, OS_MESSAGE_BLOCK);
 
 		totalSize -= burstSize;
@@ -58,7 +58,7 @@ static void ARAM_TO_ARAM_DMA(u32 src, u32 dst, u32 totalSize)
  * Address:	8000EB00
  * Size:	0000FC
  */
-static void DRAM_TO_DRAM_DMA(u32 src, u32 dst, u32 totalSize)
+static void DRAM_TO_DRAM_DMA(uintptr_t src, uintptr_t dst, u32 totalSize)
 {
 	ARQRequest request;
 	OSMessageQueue msgQueue;
@@ -66,16 +66,16 @@ static void DRAM_TO_DRAM_DMA(u32 src, u32 dst, u32 totalSize)
 	u32 dma_buffer_top;
 	u32 burstSize;
 
-	dma_buffer_top = (u32)JAC_ARAM_DMA_BUFFER_TOP;
+	dma_buffer_top = (u32)(uintptr_t)JAC_ARAM_DMA_BUFFER_TOP;
 	OSInitMessageQueue(&msgQueue, &msg, 1);
 	DCFlushRange((void*)src, totalSize);
 	DCInvalidateRange((void*)dst, totalSize);
 	while (totalSize != 0) {
 		burstSize = totalSize >= DMABUFFER_SIZE ? DMABUFFER_SIZE : totalSize;
 
-		ARQPostRequest(&request, (u32)&msgQueue, ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_LOW, src, dma_buffer_top, burstSize, &ARAMFinish);
+		ARQPostRequest(&request, PC_PTR_REF(&msgQueue), ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_LOW, src, dma_buffer_top, burstSize, &ARAMFinish);
 		OSReceiveMessage(&msgQueue, NULL, OS_MESSAGE_BLOCK);
-		ARQPostRequest(&request, (u32)&msgQueue, ARQ_TYPE_ARAM_TO_MRAM, ARQ_PRIORITY_LOW, dma_buffer_top, dst, burstSize, &ARAMFinish);
+		ARQPostRequest(&request, PC_PTR_REF(&msgQueue), ARQ_TYPE_ARAM_TO_MRAM, ARQ_PRIORITY_LOW, dma_buffer_top, dst, burstSize, &ARAMFinish);
 		OSReceiveMessage(&msgQueue, NULL, OS_MESSAGE_BLOCK);
 
 		totalSize -= burstSize;
@@ -130,7 +130,7 @@ void Jac_InitHeap(jaheap_* heap)
  * Address:	8000EC60
  * Size:	000038
  */
-void Jac_SelfInitHeap(jaheap_* heap, u32 startAddr, u32 size, u32 memType)
+void Jac_SelfInitHeap(jaheap_* heap, uintptr_t startAddr, u32 size, u32 memType)
 {
 	heap->startAddress     = startAddr;
 	heap->size             = size;
@@ -151,7 +151,7 @@ void Jac_SelfInitHeap(jaheap_* heap, u32 startAddr, u32 size, u32 memType)
  * Address:	8000ECA0
  * Size:	000100
  */
-BOOL Jac_SelfAllocHeap(jaheap_* parent, jaheap_* heap, u32 size, u32 startAddr)
+BOOL Jac_SelfAllocHeap(jaheap_* parent, jaheap_* heap, u32 size, uintptr_t startAddr)
 {
 	if (parent->startAddress && parent->startAddress != -1) {
 		return FALSE;
@@ -230,9 +230,9 @@ void Jac_CutdownHeap(jaheap_*)
  * Address:	8000EDE0
  * Size:	00005C
  */
-void Jac_InitMotherHeap(jaheap_* heap, u32 startAddr, u32 size, u8 memType)
+void Jac_InitMotherHeap(jaheap_* heap, uintptr_t startAddr, u32 size, u8 memType)
 {
-	heap->startAddress     = startAddr + 0x1f & 0xffffffe0;
+	heap->startAddress     = ALIGN_NEXT(startAddr, 32);
 	heap->usedSize         = 0;
 	heap->size             = size - (startAddr & 0x1f);
 	heap->heapId           = global_id++;
@@ -254,11 +254,11 @@ void Jac_InitMotherHeap(jaheap_* heap, u32 startAddr, u32 size, u8 memType)
  */
 BOOL Jac_AllocHeap(jaheap_* heap, jaheap_* parent, u32 size)
 {
-	u32 y;
+	uintptr_t y;
 	jaheap_* temp;
 	jaheap_* temp2;
 	jaheap_* result;
-	u32 t;
+	uintptr_t t;
 	u32 max;
 	u32 x;
 
@@ -389,7 +389,7 @@ BOOL Jac_DeleteHeap(jaheap_* heap)
 		if (heap2 == heap) {
 			heap->parent->firstChild = heap->nextSibling;
 			if (heap->nextSibling == NULL) {
-				heap->parent->usedSize = NULL;
+				heap->parent->usedSize = 0;
 			}
 		} else {
 			while (TRUE) {
@@ -446,7 +446,7 @@ BOOL Jac_DeleteHeap(jaheap_* heap)
  * Address:	8000F1C0
  * Size:	000064
  */
-static void Jac_Move_Children(jaheap_* heap, s32 flag)
+static void Jac_Move_Children(jaheap_* heap, intptr_t flag)
 {
 	if (flag == 0) {
 		return;
@@ -472,8 +472,8 @@ static void Jac_Move_Children(jaheap_* heap, s32 flag)
 void Jac_GarbageCollection_St(jaheap_* heap)
 {
 	jaheap_* heap_00;
-	u32 src;
-	u32 dst;
+	uintptr_t src;
+	uintptr_t dst;
 
 	dst     = heap->startAddress;
 	heap_00 = heap->firstChild;
@@ -536,7 +536,7 @@ void Jac_ShowHeap(jaheap_* heap, u32 flag)
 
 	// STACK_PAD_VAR(3);
 	char unused[] = "        ";
-	(void*)unused[0];
+	(void)unused[0];
 
 	c     = heap->firstChild;
 	REF_c = &c;

@@ -8,6 +8,10 @@
 #include "libc/string.h"
 
 #include "JSystem/JUtility/JUTException.h"
+#ifdef TARGET_PC
+#include "boot.h"
+#include "pc_guest_memory.h"
+#endif
 #include "JSystem/JUtility/JUTDirectPrint.h"
 #include "JSystem/JUtility/JUTDirectFile.h"
 
@@ -173,7 +177,11 @@ bool JUTException::searchPartialModule(u32 address, u32* module_id, u32* section
         return false;
     }
 
+#ifdef TARGET_PC
+    OSModuleInfo* module = BaseModule ? &BaseModule->info : nullptr;
+#else
     OSModuleInfo* module = *(OSModuleInfo**)0x800030C8;
+#endif
     for (; module != nullptr; module = module->link.next) {
         OSSectionInfo* section = OSGetSectionInfo(module);
         for (u32 i = 0; i < module->numSections; section++, i++) {
@@ -228,6 +236,21 @@ void JUTException::showStack(OSContext* context) {
     sConsole->print("-------------------------------- TRACE\n");
     sConsole->print_f("Address:   BackChain   LR save\n");
 
+#ifdef TARGET_PC
+    u32 guest = context->gpr[1];
+    for (i=0; guest && guest != 0xffffffffu && i++ < 0x10;) {
+        u8 bytes[8];
+        if (!pc_guest_read(guest, bytes, sizeof(bytes))) break;
+        u32 next = ((u32)bytes[0]<<24)|((u32)bytes[1]<<16)|((u32)bytes[2]<<8)|bytes[3];
+        u32 lr = ((u32)bytes[4]<<24)|((u32)bytes[5]<<16)|((u32)bytes[6]<<8)|bytes[7];
+        if (i > mTraceSuppress) { sConsole->print("Suppress trace.\n"); return; }
+        sConsole->print_f("%08X:  %08X    %08X\n", guest, next, lr);
+        showMapInfo_subroutine(lr, false);
+        JUTConsoleManager::sManager->drawDirect(true);
+        waitTime(mPrintWaitTime1);
+        guest=next;
+    }
+#else
     for (i = 0, stackPointer = (u32*)context->gpr[1];
          (stackPointer != nullptr) && (stackPointer != (u32*)0xFFFFFFFF) && (i++ < 0x10);) {
         if (i > mTraceSuppress) {
@@ -242,6 +265,7 @@ void JUTException::showStack(OSContext* context) {
         waitTime(mPrintWaitTime1);
         stackPointer = (u32*)stackPointer[0];
     }
+#endif
 }
 
 void JUTException::showMainInfo(u16 error, OSContext* context, u32 dsisr, u32 dar) {
@@ -285,7 +309,15 @@ bool JUTException::showMapInfo_subroutine(u32 address, bool begin_with_newline) 
 
     bool result = searchPartialModule(address, &module_id, &section_id, &section_offset, &name_offset);
     if (result == true) {
+#ifdef TARGET_PC
+        u8 guest_name[256];
+        unsigned n=0;
+        while (n<sizeof(guest_name)-1 && pc_guest_read(name_offset+n,&guest_name[n],1) && guest_name[n]) ++n;
+        guest_name[n]=0;
+        search_name_part(guest_name,name_part,32);
+#else
         search_name_part((u8*)name_offset, name_part, 32);
+#endif
         sConsole->print_f("%s %s:%x section:%d\n", new_line, name_part, section_offset, section_id);
         begin_with_newline = false;
     }
@@ -610,8 +642,8 @@ void JUTException::createFB() {
     u32 pixel_count = width * height;
     u32 size = pixel_count * 2;
 
-    void* begin = (void*)ALIGN_PREV((u32)end - size, 32);
-    void* object = (void*)ALIGN_PREV((s32)begin - sizeof(JUTExternalFB), 32);
+    void* begin = (void*)ALIGN_PREV((uintptr_t)end - size, 32);
+    void* object = (void*)ALIGN_PREV((uintptr_t)begin - sizeof(JUTExternalFB), 32);
     JUTExternalFB* fb = new (object) JUTExternalFB(renderMode, GX_GM_1_7, begin, size);
 
     mDirectPrint->changeFrameBuffer(object);

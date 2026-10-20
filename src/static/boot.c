@@ -33,6 +33,7 @@
 #include "m_field_make.h"
 #include "m_map_ovl.h"
 #include "pc_bswap.h"
+#include "pc_gbi.h"
 
 /* Raw binary display lists (u8[] with BE data from ROM .inc files).
    On LE these need u32 byte-swap so emu64 reads correct commands. */
@@ -67,7 +68,7 @@ static void pc_bswap_raw_display_lists(void) {
     };
     int i;
     for (i = 0; i < 3; i++) {
-        pc_bswap32_array(lists[i].data, lists[i].size / 4);
+        pc_gbi_decode_wire_list(lists[i].data, lists[i].data, lists[i].size / 8);
     }
 }
 
@@ -230,7 +231,7 @@ extern void UnLink(OSModuleHeader* module) {
   if (module != nullptr) {
     if (module->epilog != 0) {
       OSReport("エピローグ開始\n"); /* epilog start */
-      ((void (*)())module->epilog)();
+      PC_REF_PTR(void (*)(void), module->epilog)();
       OSReport("エピローグ完了\n"); /* epilog complete */
     }
 
@@ -298,7 +299,7 @@ OSModuleHeader* LoadLink(const char* module_name) {
     }
         
     OSLink(&module->info, bss);
-    ((void (*)())module->prolog)();
+    PC_REF_PTR(void (*)(void), module->prolog)();
     return module;
   }
 
@@ -577,7 +578,7 @@ int main(int argc, const char** argv) {
     PAD_BUTTON_START
   };
 
-  u32 var1;
+  uintptr_t var1;
   OSThread* var2;
   void* start;
   void* end;
@@ -613,14 +614,14 @@ int main(int argc, const char** argv) {
   OSInitAlarm();
 
   /* Initialize stack */
-  var1 = ((u32)OSGetStackPointer() - 0x100);
+  var1 = ((uintptr_t)OSGetStackPointer() - 0x100);
   var2 = OSGetCurrentThread();
   base = (u32*)var1;
 
   if ((u8*)base < var2->stackBase) {
     basenext = (u32*)var2->stackEnd + 1;
     if (base > basenext) {
-      memset(basenext, 0xfd, (u32)base - (u32)basenext);
+      memset(basenext, 0xfd, (size_t)((u8*)base - (u8*)basenext));
     }
   }
 
@@ -777,7 +778,7 @@ int main(int argc, const char** argv) {
   mFM_InitActableEndian();
   pc_bswap_u8_tlut_palettes();
   pc_bswap_house_pos_list();
-  OSReport("[PC] boot: entering HotStartEntry loop (entry=%08x)...\n", (u32)HotStartEntry);
+  OSReport("[PC] boot: entering HotStartEntry loop (entry=%p)...\n", (void*)HotStartEntry);
 #endif
   while (HotStartEntry != nullptr) {
     OSReport("ホットスタート(%08x)\n", HotStartEntry);

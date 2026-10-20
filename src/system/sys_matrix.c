@@ -1,3 +1,4 @@
+#include "libultra/gu.h"
 #include "sys_matrix.h"
 #include "TwoHeadArena.h"
 #include "m_skin_matrix.h"

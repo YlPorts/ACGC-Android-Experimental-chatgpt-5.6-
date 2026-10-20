@@ -2569,7 +2569,7 @@ static void Player_actor_AppearShadow_fromAnimationFrame(ACTOR* actorx, f32 appe
 
 static void* Player_actor_get_door_label(GAME* game) {
     if (mPlib_get_player_actor_main_index(game) == mPlayer_INDEX_DOOR) {
-        return (void*)GET_PLAYER_ACTOR_GAME(game)->main_data.door.label;
+        return PC_REF_PTR(void*, GET_PLAYER_ACTOR_GAME(game)->main_data.door.label);
     }
 
     return 0;
@@ -4551,7 +4551,7 @@ static u32 Player_actor_Get_item_net_catch_label(ACTOR* actorx) {
 
 static int Player_actor_Change_item_net_catch_label(ACTOR* actorx, u32 label, s8 insect_type) {
     PLAYER_ACTOR* player = (PLAYER_ACTOR*)actorx;
-    aINS_INSECT_ACTOR* insect_actor = (aINS_INSECT_ACTOR*)label;
+    aINS_INSECT_ACTOR* insect_actor = PC_REF_PTR(aINS_INSECT_ACTOR*, label);
 
     if (player->item_net_has_catch == FALSE) {
         switch (player->now_main_index) {
@@ -6828,7 +6828,7 @@ static int Player_actor_CheckAndRequest_KnockDoor(ACTOR* actorx, GAME* game, int
 
     if (main_index == mPlayer_INDEX_DOOR) {
         mPlayer_request_door_c* req_door_data_p = &player->requested_main_index_data.door;
-        ACTOR* door_actor = (ACTOR*)req_door_data_p->label;
+        ACTOR* door_actor = PC_REF_PTR(ACTOR*, req_door_data_p->label);
 
         if (door_actor != NULL && Player_actor_Check_NecessaryDoorKnock(door_actor)) {
             if (Player_actor_request_main_knock_door(game, &req_door_data_p->player_pos, req_door_data_p->angle_y,
@@ -7067,7 +7067,7 @@ static void Player_actor_Set_bgm_volume(ACTOR* actorx, int main_index) {
 static int Player_actor_Check_Label_main_push_snowball(GAME* game, void* label) {
     PLAYER_ACTOR* player = GET_PLAYER_ACTOR_GAME(game);
 
-    if (player->now_main_index == mPlayer_INDEX_PUSH_SNOWBALL && player->main_data.push_snowball.label == (u32)label) {
+    if (player->now_main_index == mPlayer_INDEX_PUSH_SNOWBALL && player->main_data.push_snowball.label == PC_PTR_REF(label)) {
         return TRUE;
     }
 
@@ -7078,7 +7078,7 @@ static int Player_actor_Check_Label_main_wade_snowball(GAME* game, void* label) 
     PLAYER_ACTOR* player = GET_PLAYER_ACTOR_GAME(game);
 
     if (player->now_main_index == mPlayer_INDEX_WADE_SNOWBALL &&
-        player->main_data.wade_snowball.snowball_label == (u32)label) {
+        player->main_data.wade_snowball.snowball_label == PC_PTR_REF(label)) {
         return TRUE;
     }
 
@@ -7823,7 +7823,7 @@ static int Player_actor_Check_able_force_speak_label(GAME* game, void* label) {
         return TRUE;
     }
 
-    if (able_force_speak_label == (u32)label) {
+    if (able_force_speak_label == PC_PTR_REF(label)) {
         return TRUE;
     }
 
@@ -7865,7 +7865,7 @@ static int Player_actor_Check_stung_mosquito(GAME* game, void* label) {
         case mPlayer_INDEX_STUNG_MOSQUITO: {
             u32 stung_label = GET_PLAYER_ACTOR_GAME(game)->requested_main_index_data.stung_mosquito.label;
 
-            if (stung_label == (u32)label) {
+            if (stung_label == PC_PTR_REF(label)) {
                 return TRUE;
             }
             break;
@@ -7873,7 +7873,7 @@ static int Player_actor_Check_stung_mosquito(GAME* game, void* label) {
         case mPlayer_INDEX_NOTICE_MOSQUITO: {
             u32 notice_label = GET_PLAYER_ACTOR_GAME(game)->requested_main_index_data.notice_mosquito.label;
 
-            if (notice_label == (u32)label) {
+            if (notice_label == PC_PTR_REF(label)) {
                 return TRUE;
             }
             break;

@@ -12,7 +12,7 @@ JKRArchive::JKRArchive() {
     mMountDirection = MOUNT_DIRECTION_HEAD;
 }
 
-JKRArchive::JKRArchive(s32 entryNum, JKRArchive::EMountMode mountMode) : JKRFileLoader() {
+JKRArchive::JKRArchive(intptr_t entryNum, JKRArchive::EMountMode mountMode) : JKRFileLoader() {
     mIsMounted = false;
     mMountMode = mountMode;
     mMountCount = 1;

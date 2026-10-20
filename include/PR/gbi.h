@@ -31,7 +31,7 @@
 #ifdef TARGET_PC
 #ifndef _GBI_RUNTIME_PTR_HELPERS
 #define _GBI_RUNTIME_PTR_HELPERS
-_GBI_STATIC_ASSERT(sizeof(void*) == sizeof(unsigned int), "GBI pointer packing requires 32-bit pointers");
+_GBI_STATIC_ASSERT(sizeof(u32) == 4, "GBI words must remain 32-bit");
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,7 +46,12 @@ uintptr_t pc_gbi_unpack_runtime_ptr(unsigned int packed);
 /* GCC GNU extension: pointer-to-integer cast in static initializers.
    Safe on 32-bit where sizeof(void*) == sizeof(unsigned int). */
 #ifndef _GBI_STATIC_PTR
+#ifdef PC_NATIVE_64
+#define PC_GBI_STATIC_ADDRESS 0xefffffffu
+#define _GBI_STATIC_PTR(s) PC_GBI_STATIC_ADDRESS, (uintptr_t)(s)
+#else
 #define _GBI_STATIC_PTR(s) (unsigned int)(uintptr_t)(s)
+#endif
 #endif
 /* Runtime display-list commands tag real PC pointers in bit 0. N64 segmented
    addresses are integer expressions and are left unchanged. */
@@ -1174,7 +1179,11 @@ typedef struct {
  * First 8 words are integer portion of the 4x4 matrix
  * Last 8 words are the fraction portion of the 4x4 matrix
  */
+#if defined(TARGET_PC) && __SIZEOF_LONG__ == 8
+typedef int32_t Mtx_t[4][4];
+#else
 typedef long	Mtx_t[4][4];
+#endif
 
 typedef union {
     Mtx_t		m;
@@ -1874,10 +1883,10 @@ typedef struct {
  * Textured rectangles are 128 bits not 64 bits
  */	
 typedef struct {
-    unsigned long w0;
-    unsigned long w1;
-    unsigned long w2;
-    unsigned long w3;
+    u32 w0;
+    u32 w1;
+    u32 w2;
+    u32 w3;
 } TexRect;
 
 /*
@@ -1886,6 +1895,9 @@ typedef struct {
 typedef struct {
 	unsigned int w0;
 	unsigned int w1;
+#ifdef PC_NATIVE_64
+    uintptr_t native_address; /* relocation for compiled static lists */
+#endif
 } Gwords;
 
 /*
@@ -3224,7 +3236,7 @@ typedef union {
 {{									\
 	_SHIFTL(cmd, 24, 8) | _SHIFTL(fmt, 21, 3) |			\
 	_SHIFTL(siz, 19, 2) | _SHIFTL((width)-1, 0, 12),		\
-	(unsigned int)(i)						\
+	_GBI_STATIC_PTR(i)						\
 }}
 
 #define	gDPSetColorImage(pkt, f, s, w, i)	gSetImage(pkt, G_SETCIMG, f, s, w, i)

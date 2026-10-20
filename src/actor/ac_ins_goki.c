@@ -42,8 +42,8 @@ enum {
 #define aIGK_TARGET_ANGLE(insect) ((insect)->s32_work0)
 #define aIGK_CHANGE_WAIT_TIMER(insect) ((insect)->f32_work0)
 #define aIGK_MOVE_TIMER(insect) ((insect)->f32_work1)
-#define aIGK_GET_ITEM_P(insect) ((insect)->s32_work3)
-#define aIGK_SET_ITEM_P(insect, item_p) ((insect)->s32_work3 = (int)item_p)
+#define aIGK_GET_ITEM_P(insect) PC_REF_PTR(mActor_name_t*, (insect)->s32_work3)
+#define aIGK_SET_ITEM_P(insect, item_p) ((insect)->s32_work3 = (int)PC_PTR_REF(item_p))
 
 static void aIGK_actor_move(ACTOR* actorx, GAME* game);
 static void aIGK_setupAction(aINS_INSECT_ACTOR* insect, int action, GAME* game);
@@ -171,7 +171,7 @@ static int aIGK_check_player_net(aINS_INSECT_ACTOR* insect) {
     if (mPlib_Check_StopNet(&net_pos) == TRUE) {
         u32 label = mPlib_Get_item_net_catch_label();
 
-        if (label != (u32)insect) {
+        if (label != PC_PTR_REF(insect)) {
             f32 dX = net_pos.x - insect->tools_actor.actor_class.world.position.x;
             f32 dZ = net_pos.z - insect->tools_actor.actor_class.world.position.z;
 
@@ -234,7 +234,7 @@ static void aIGK_avoid(ACTOR* actorx, GAME* game) {
     }
 
     actorx->gravity = grav;
-    sAdo_OngenPos((u32)actorx, NA_SE_26, &actorx->world.position);
+    sAdo_OngenPos(PC_PTR_REF(actorx), NA_SE_26, &actorx->world.position);
     aIGK_anime_proc(insect, game);
 
     if (insect->bg_type == 0) {
@@ -279,7 +279,7 @@ static void aIGK_move_on_flower(ACTOR* actorx, GAME* game) {
         aIGK_MOVE_TIMER(insect) -= (f32)game->graph->dt_num_60fps_frames;
 
         if (aIGK_MOVE_TIMER(insect) <= 0.0f) {
-            sAdo_OngenPos((u32)actorx, NA_SE_GOKI_MOVE, &actorx->world.position);
+            sAdo_OngenPos(PC_PTR_REF(actorx), NA_SE_GOKI_MOVE, &actorx->world.position);
             insect->timer = (int)(2 * (90.0f + RANDOM_F(90.0f)));
             aIGK_setupAction(insect, aIGK_ACTION_WAIT_ON_FLOWER, game);
         } else {
@@ -476,7 +476,7 @@ static void aIGK_actor_move(ACTOR* actorx, GAME* game) {
     aINS_INSECT_ACTOR* insect = (aINS_INSECT_ACTOR*)actorx;
     u32 label = mPlib_Get_item_net_catch_label();
 
-    if (label == (u32)actorx) {
+    if (label == PC_PTR_REF(actorx)) {
         aIGK_setupAction(insect, aIGK_ACTION_LET_ESCAPE, game);
     } else if (insect->insect_flags.bit_3 == TRUE && insect->insect_flags.bit_2 == FALSE) {
         aIGK_setupAction(insect, aIGK_ACTION_LET_ESCAPE, game);

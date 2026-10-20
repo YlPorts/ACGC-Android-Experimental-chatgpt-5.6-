@@ -9,7 +9,7 @@
 #ifdef __cplusplus
 class JKRADCommand {
   public:
-    typedef void (*LoadCallback)(u32);
+    typedef void (*LoadCallback)(uintptr_t);
     JKRADCommand();
     ~JKRADCommand();
 

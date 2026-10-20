@@ -2560,7 +2560,7 @@ static u32 Cmd_Printf()
 {
 	char fmtStr[0x80];
 	u8 fmtFlags[4];
-	u32 fmtParms[4];
+	uintptr_t fmtParms[4];
 	size_t fmtCount;
 	size_t i;
 
@@ -2622,7 +2622,7 @@ static u32 Cmd_Printf()
 	for (i = 0; i < fmtCount; ++i) {
 		fmtParms[i] = __ByteRead(SEQ_P);
 		if (fmtFlags[i] == 2) {
-			fmtParms[i] = (u32)Jam_OfsToAddr(SEQ_P, fmtParms[i]);
+			fmtParms[i] = (uintptr_t)Jam_OfsToAddr(SEQ_P, fmtParms[i]);
 		// } else if (fmtFlags[i] == 5) {
 		// 	fmtParms[i] = SEQ_P->trackId;
 		}

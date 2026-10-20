@@ -81,7 +81,7 @@ struct OSModuleHeader {
 #endif
 };
 
-#define OSGetSectionInfo(module) ((OSSectionInfo*)(((OSModuleInfo*)(module))->sectionInfoOffset))
+#define OSGetSectionInfo(module) PC_REF_PTR(OSSectionInfo*, ((OSModuleInfo*)(module))->sectionInfoOffset)
 
 #define OS_SECTIONINFO_EXEC 0x1
 #define OS_SECTIONINFO_OFFSET(offset) ((offset) & ~0x1)

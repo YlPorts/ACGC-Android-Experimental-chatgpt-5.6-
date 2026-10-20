@@ -14,7 +14,8 @@ extern "C" {
 
 void Add_PortcmdOnce(u32*);
 void Add_PortcmdStay(void); // UNUSED but we know it's extern "C"
-int Set_Portcmd(int*, int, int);
+typedef int (*PortcmdCallback)(int);
+int Set_Portcmd(int*, PortcmdCallback, int);
 BOOL Add_Portcmd(JPorthead_*, u32*);
 void Cancel_Portcmd(void);     // UNUSED but we know it's extern "C"
 void Cancel_PortcmdStay(void); // UNUSED but we know it's extern "C"
@@ -30,7 +31,7 @@ void JP_Stop1Shot(void);  // UNUSED but we know it's extern "C"
 }
 #endif // ifdef __cplusplus
 
-static int Get_Portcmd(JPorthead_* port);
+static u32* Get_Portcmd(JPorthead_* port);
 static s32 Portcmd_Main(void* a);
 
 #endif

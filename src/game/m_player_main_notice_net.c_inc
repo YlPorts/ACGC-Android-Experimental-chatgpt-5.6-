@@ -36,7 +36,7 @@ static void Player_actor_setup_main_Notice_net(ACTOR* actor, GAME* game) {
         s8 type = player->item_net_catch_type;
 
         if (type == 0) {
-            item = ((aINS_INSECT_ACTOR*)label)->item;
+            item = (PC_REF_PTR(aINS_INSECT_ACTOR*, label))->item;
         } else if (player->item_net_catch_insect_idx == aINS_INSECT_TYPE_BEE) {
             item = ITM_INSECT08;
         } else {
@@ -110,9 +110,9 @@ static void Player_actor_settle_main_Notice_net(ACTOR* actor, GAME* game) {
         u32 label = player->item_net_catch_label;
 
         if (label != 0 && player->item_net_catch_type == 0) {
-            ((aINS_INSECT_ACTOR*)label)->patience = 100.0f;
-            ((ACTOR*)label)->drawn = TRUE;
-            ((ACTOR*)label)->actor_specific = 1;
+            (PC_REF_PTR(aINS_INSECT_ACTOR*, label))->patience = 100.0f;
+            (PC_REF_PTR(ACTOR*, label))->drawn = TRUE;
+            (PC_REF_PTR(ACTOR*, label))->actor_specific = 1;
         }
     }
 }
@@ -254,7 +254,7 @@ static void Player_actor_request_proc_index_fromNotice_net(ACTOR* actor, GAME* g
             mPlayer_request_release_creature_u release_data;
 
             bzero(&release_data, sizeof(mPlayer_request_release_creature_u));
-            Player_actor_request_main_release_creature_all(game, 0, 0, &release_data, (ACTOR*)label,
+            Player_actor_request_main_release_creature_all(game, 0, 0, &release_data, PC_REF_PTR(ACTOR*, label),
                                                            mPlayer_REQUEST_PRIORITY_30);
         } else {
             Player_actor_request_main_wait_all(game, -5.0f, 0.0f, 0, mPlayer_REQUEST_PRIORITY_34);

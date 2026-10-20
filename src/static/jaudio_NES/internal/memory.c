@@ -266,8 +266,8 @@ void Nas_HeapInit(ALHeap* heap, u8* p2, s32 p3) {
         heap->current = NULL;
         heap->last = NULL;
     } else {
-        length = p3 - ((u32)p2 & 0x1F);
-        heap->base = (u8*)ALIGN_NEXT((u32)p2, 32);
+        length = p3 - ((uintptr_t)p2 & 0x1F);
+        heap->base = (u8*)ALIGN_NEXT((uintptr_t)p2, 32);
         heap->current = heap->base;
         heap->length = length;
         heap->last = NULL;
@@ -281,7 +281,7 @@ void Nas_HeapInit(ALHeap* heap, u8* p2, s32 p3) {
  */
 void Nas_SzStayClear(SZStay* p1) {
     p1->heap.current = p1->heap.base;
-    p1->heap.count = NULL;
+    p1->heap.count = 0;
     p1->num_entries = 0;
 }
 
@@ -1369,7 +1369,7 @@ void __RestoreAddr(Wavelookuptable* a, smzwavetable* b) {
         u8* o = a_sample + a->_08;
         if (b_sample >= a_sample && b_sample < o) {
             // fakematch?
-            b->sample = (u8*)((u32)a->_04 + (b->sample - (u32)a->sample));
+            b->sample = (u8*)((uintptr_t)a->_04 + ((uintptr_t)b->sample - (uintptr_t)a->sample));
             if (EXGTYPE == 0) {
                 b->medium = a->medium;
             } else {
@@ -1416,13 +1416,13 @@ void __ExchangeWave(s32 a, s32 b) {
     u8* alloc = (u8*)Nas_SzCacheCheck(2, 2, b);
     pWaveTable->sample = alloc;
     if (pWaveTable->sample) {
-        pWaveTable->_08 = (s32)wave_header[b].entries[0].size;
-        pWaveTable->medium = wave_header[b].entries[0].medium;
-        pWaveTable->_04 = (u8*)wave_header[b].entries[0].addr;
+        pWaveTable->_08 = (s32)wave_header->entries[b].size;
+        pWaveTable->medium = wave_header->entries[b].medium;
+        pWaveTable->_04 = (u8*)wave_header->entries[b].addr;
         switch (a) {
             case 1: {
                 pWaveTable->_04 = alloc;
-                pWaveTable->sample = (u8*)wave_header[b].entries[0].addr;
+                pWaveTable->sample = (u8*)wave_header->entries[b].addr;
             } break;
             case 0:
             default:
@@ -1506,7 +1506,7 @@ int __Nas_GetCompressBuffer(delay* a) {
  * Address:	........
  * Size:	00028C
  */
-void Nas_SetDelayLineParam(s32 a, s32 b, s32 c, s32 d) {
+void Nas_SetDelayLineParam(s32 a, s32 b, intptr_t c, s32 d) {
     delay* delay = &AG.synth_delay[a];
     switch (b) {
         case 0: {

@@ -120,7 +120,7 @@ static void Player_actor_request_proc_index_fromWade_snowball(ACTOR* actor, GAME
         Player_actor_SettleRequestMainIndexPriority(actor);
 
         if (anim_idx != mPlayer_ANIM_WAIT1 && player->crash_snowball_for_wade == FALSE) {
-            Player_actor_request_main_push_snowball_all(game, (void*)player->main_data.wade_snowball.snowball_label, 1,
+            Player_actor_request_main_push_snowball_all(game, PC_REF_PTR(void*, player->main_data.wade_snowball.snowball_label), 1,
                                                         mPlayer_REQUEST_PRIORITY_2);
         } else {
             Player_actor_request_main_walk_all(game, &player->main_data.wade_snowball.end_pos, -5.0f, 6, 1);

@@ -131,7 +131,7 @@ static void EffecterInit(jc_* jc, Inst_* inst)
  * Address:	800153E0
  * Size:	0000D0
  */
-static void EffecterInit_Perc(jc_* jc, Pmap_* pmap, u16 id)
+static void EffecterInit_Perc(jc_* jc, PercKeymap_* pmap, u16 id)
 {
 	jc->pitchModifier            = 1.0f;
 	jc->volumeModifier           = 1.0f;
@@ -140,13 +140,13 @@ static void EffecterInit_Perc(jc_* jc, Pmap_* pmap, u16 id)
 	jc->panMatrices[3].values[1] = 0.0f;
 
 	// PERC instruments only have rand and not osc
-    Pmap_* map;
-	for (u32 i = 0; i < 2; i++) {
-		 map = (Pmap_*)((int*)pmap + i + 2);
-		if (map->_00) {
-			f32 r      = Bank_RandToOfs(map->_00);
-			f32* REF_r = &r;
-			__DoEffect(jc, map->_00->id, r);
+    Rand_* effects[2] = { (Rand_*)pmap->_08, (Rand_*)pmap->_0C };
+    for (u32 i = 0; i < 2; i++) {
+        Rand_* effect = effects[i];
+        if (effect) {
+            f32 r = Bank_RandToOfs(effect);
+            f32* REF_r = &r;
+            __DoEffect(jc, effect->id, r);
 		}
 
 		jc->mOscillators[i] = NULL;
@@ -219,7 +219,7 @@ static jc_* __Oneshot_Play_Start(jcs_* jcs, jc_* jc, u32 id)
 	jc->playId         = id;
 	jc->savedPlayId    = jc->playId;
 	jc->updateCallback = Jesus1Shot_Update;
-	jc->dspChannel     = AllocDSPchannel(0, (u32)jc);
+	jc->dspChannel     = AllocDSPchannel(0, PC_PTR_REF(jc));
 
 	if (jc->dspChannel == NULL) {
 		play = CheckLogicalChannel(jc);
@@ -236,7 +236,7 @@ static jc_* __Oneshot_Play_Start(jcs_* jcs, jc_* jc, u32 id)
 			return NULL;
 		}
 	} else if (play == FALSE) {
-		DeAllocDSPchannel(jc->dspChannel, (u32)jc);
+		DeAllocDSPchannel(jc->dspChannel, PC_PTR_REF(jc));
 		jc->dspChannel = NULL;
 		List_AddChannelTail(&jcs->freeChannels, jc);
 		return NULL;
@@ -251,9 +251,9 @@ static jc_* __Oneshot_Play_Start(jcs_* jcs, jc_* jc, u32 id)
  * Address:	800156E0
  * Size:	000154
  */
-static jc_* __Oneshot_GetLogicalChannel(jcs_* jcs, CtrlWave_* wave)
+static jc_* __Oneshot_GetLogicalChannel(jcs_* jcs, WaveID_* wave)
 {
-	if (wave && wave->_0C == NULL) {
+	if (wave && wave->heap.startAddress == NULL) {
 		return FALSE;
 	}
 
@@ -291,8 +291,8 @@ static jc_* __Oneshot_GetLogicalChannel(jcs_* jcs, CtrlWave_* wave)
 	}
 	Channel_Init(chan);
 	if (wave) {
-		chan->waveData        = (Wave_*)wave->_34;
-		chan->_14             = wave->_0C;
+		chan->waveData        = wave->data;
+		chan->_14             = wave->heap.startAddress;
 		chan->logicalChanType = 0;
 	}
 	chan->_18 = 0;
@@ -882,7 +882,7 @@ jc_* Play_1shot(jcs_* jcs, SOUNDID_ sound, u32 id)
 		return NULL;
 	}
 
-	chan = __Oneshot_GetLogicalChannel(jcs, (CtrlWave_*)wave);
+	chan = __Oneshot_GetLogicalChannel(jcs, wave);
 	if (chan == NULL) {
 		return NULL;
 	}
@@ -971,7 +971,7 @@ jc_* Play_1shot_Perc(jcs_* jcs, SOUNDID_ sound, u32 id)
 		return NULL;
 	}
 
-	chan = __Oneshot_GetLogicalChannel(jcs, (CtrlWave_*)wave);
+	chan = __Oneshot_GetLogicalChannel(jcs, wave);
 	if (chan == NULL) {
 		return NULL;
 	}
@@ -996,7 +996,7 @@ jc_* Play_1shot_Perc(jcs_* jcs, SOUNDID_ sound, u32 id)
 	}
 	chan->panMatrices[2].values[0] = 0.0f;
 	chan->panMatrices[3].values[0] = 0.0f;
-	EffecterInit_Perc(chan, (Pmap_*)perc->mKeyRegions[sound.bytes[2]], flag);
+	EffecterInit_Perc(chan, perc->mKeyRegions[sound.bytes[2]], flag);
 	chan->soundId = 0;
 
 	return __Oneshot_Play_Start(jcs, chan, id);

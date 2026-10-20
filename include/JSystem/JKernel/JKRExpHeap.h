@@ -7,7 +7,7 @@
 #ifdef __cplusplus
 class JKRExpHeap : public JKRHeap {
   public:
-    class CMemBlock {
+    class alignas(16) CMemBlock {
       public:
         CMemBlock* allocBack(u32, u8, u8, u8, u8);
         CMemBlock* allocFore(u32, u8, u8, u8, u8);
@@ -43,7 +43,7 @@ class JKRExpHeap : public JKRHeap {
             return mGroupID;
         }
         static CMemBlock* getBlock(void* data) {
-            return (CMemBlock*)((u32)data + -0x10);
+            return (CMemBlock*)data - 1;
         }
 
         u16 mUsageHeader;    // _00
