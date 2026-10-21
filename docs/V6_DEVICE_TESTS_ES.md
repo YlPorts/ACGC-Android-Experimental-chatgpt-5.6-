@@ -5,8 +5,12 @@ obtenidos. Registrar APK, SHA-256, certificado, ABI de proceso, dispositivo, ver
 Android, GPU, versión de cada pack y logs. Objetivo principal: Galaxy A15 SM-A155M,
 Android 16/Mali; repetir los casos básicos en otro dispositivo y en ARM32.
 
-1. Conservar una copia de la carpeta de juego y del pueblo V4/V5. Verificar el
-   certificado y actualizar con `adb install -r <apk>` sin desinstalar. Comprobar
+1. Conservar y verificar una copia de la carpeta de juego y del pueblo V4/V5.
+   Comparar certificados: usar `adb install -r <apk>` sólo si coinciden. Las
+   candidatas V6 de esta sesión tienen una firma nueva autorizada por el
+   propietario y **no actualizan directamente una V5 de otra firma**. Seguir las
+   precauciones de migración que figuran abajo antes de cambiar de instalación.
+   Comprobar
    que siguen la carpeta SAF, permisos persistentes, preferencias, idiomas, DDS,
    ROMs adicionales y todos los perfiles/posiciones de controles.
 2. Instalar ARM64 y universal en un dispositivo compatible. Confirmar
@@ -49,3 +53,33 @@ No convertir un caso pendiente en aprobado a partir de una compilación, una
 captura del lanzador o un test de componentes. La firma, archivos de usuario y
 copias de seguridad se revisan antes de probar una actualización sobre el pueblo
 principal.
+
+## Migración de firma V5 → V6
+
+Una firma nueva no cambia el formato de guardado, pero Android impide reemplazar
+la instalación anterior. No desinstalar V5 hasta comprobar las copias siguientes:
+
+- Salir del juego normalmente, dejar que finalice la sincronización y verificar
+  los archivos de `saves/` y `config/` en la carpeta externa seleccionada.
+  Copiar la carpeta completa, incluidos idiomas, texturas y ROMs adicionales,
+  fuera del almacenamiento privado de la app y de `Android/data/com.acgc.port`.
+- Las preferencias Android y posiciones de controles viven en `shared_prefs`;
+  no se presupone que se exporten con `settings.ini`. Para una instalación V5
+  depurable, se pueden respaldar junto con los archivos privados mediante
+  `adb exec-out run-as com.acgc.port tar -cf - files shared_prefs > acgc-v5-private.tar`.
+  Verificar que el comando termina correctamente y que el archivo se puede leer
+  con `tar -tf acgc-v5-private.tar`. Si `run-as` no está permitido, no considerar
+  respaldadas esas preferencias ni continuar con la única copia del pueblo.
+- La restauración del archivo privado, con la app detenida y sobre una V6
+  depurable, puede hacerse mediante
+  `adb shell am force-stop com.acgc.port` y
+  `adb shell run-as com.acgc.port tar -xf - < acgc-v5-private.tar`.
+  No se ha ejecutado esta migración en un dispositivo de esta sesión. Probarla
+  primero sobre copias, conservar la APK V5 y no eliminar los respaldos.
+- La concesión SAF de Android no se restaura copiando preferencias: volver a
+  seleccionar la misma carpeta y otorgar acceso. Verificar pueblo, configuración
+  y todos los controles antes de jugar sobre los datos principales.
+
+Las siguientes actualizaciones V6 sólo podrán usar instalación directa si se
+conserva la nueva clave persistente. Las APK de desarrollo con otra firma tampoco
+son intercambiables por `adb install -r`.

@@ -70,8 +70,10 @@ introduce una conversión de pueblo entre arquitecturas.
 Toolchain: JDK 17, Gradle 8.11.1 con checksum, AGP 8.9.2, NDK r28c
 `28.2.13676358`, CMake 3.22.1, compileSdk 35, minSdk 23 y targetSdk 34. Se mantiene
 el target anterior para no introducir un cambio de permisos/ciclo de vida junto
-con la migración. ELF ARM64 y las bibliotecas sin comprimir del APK se comprueban
-para páginas de 16 KB.
+con la migración. Los segmentos ELF ARM64 se comprueban para páginas de 16 KB y
+todos los APK pasan `zipalign -c -P 16`. Se conserva `extractNativeLibs=true`: en
+los APK comprobados las bibliotecas están comprimidas y Android las extrae al
+instalar; no se afirma que se carguen directamente desde el ZIP.
 
 ## Comprobaciones ejecutadas
 
@@ -115,18 +117,40 @@ cd android
 ./gradlew --no-daemon assembleUniversalDebug assembleArm64Debug assembleArm32Debug
 ```
 
-En CI se usan los mismos secretos `ACGC_SIGNING_KEY` y
-`ACGC_SIGNING_PASSWORD`, el mismo PKCS12 y el mismo alias `acgc-public` que V5.
-El validador compara el certificado del APK con ese keystore. Una compilación de
-distribución sin esos secretos falla; no publica un sustituto con otra firma.
-Los PR sin secretos pueden compilar para revisión y sólo publican el informe.
+El propietario autorizó crear **una clave persistente nueva para V6** al no estar
+disponible la anterior. Las tres candidatas locales usan el mismo PKCS12 y alias
+`acgc-public`. Certificado público SHA-256:
 
-Una compilación local sin las variables de firma usa el certificado de desarrollo
-de Android. **No debe confundirse con una actualización de la APK ya instalada**.
-Para actualizar conservando el pueblo se requiere el mismo certificado del APK
-instalado. No se debe desinstalar la aplicación para sortear una discrepancia.
+```text
+265e4f32ba1e44b346e8361941a3e0f02f3549ea5e6d9bbecf29f6ccebdaeccc
+```
 
-Products/artifacts de la candidata firmada por CI:
+**Esta firma no permite actualizar directamente la V5 de otra firma.** Antes de
+cambiar de instalación deben verificarse copias externas del pueblo, configuración
+y preferencias privadas. El [protocolo de dispositivo](V6_DEVICE_TESTS_ES.md)
+explica la diferencia entre actualización con la misma firma y migración de
+firma. No desinstalar la V5 con la única copia de esos datos dentro de la app.
+
+El workflow acepta `ACGC_SIGNING_KEY` (PKCS12 en base64) y
+`ACGC_SIGNING_PASSWORD`. No genera claves efímeras por variante ni sube claves,
+contraseñas o keystores a artifacts, cachés o al repositorio. El validador compara
+el certificado del APK con el keystore configurado.
+
+La integración GitHub de esta sesión recibe HTTP 403 al solicitar la clave pública
+de la API de secretos; no puede instalar esos dos secretos. La clave nueva se
+conserva fuera del repositorio, con permisos privados, para copia segura y
+configuración por el propietario. No basta con que un build tenga firma válida:
+para futuras actualizaciones debe mantenerse exactamente este certificado.
+
+Sin ambos secretos, CI compila y valida **inputs sin firmar**, publicados sólo como
+`V6-unsigned-{Universal,ARM64,ARM32}-build`, con sufijo `-unsigned.apk`,
+`release_status=unsigned-build` y `signature_verified=false`. No son instalables
+ni se consideran candidatas distribuidas. Un secreto incompleto hace fallar el
+workflow. Con ambos secretos, CI firma y verifica los tres productos normales.
+Una compilación local ordinaria sin variables usa el certificado de desarrollo;
+`ACGC_UNSIGNED_BUILD=1` solicita explícitamente el modo sin firma.
+
+Productos de la candidata firmada:
 
 - `Animal-Crossing-Android-V6.0-Universal.apk`
 - `Animal-Crossing-Android-V6.0-ARM64.apk`

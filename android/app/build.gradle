@@ -4,6 +4,11 @@ plugins {
 
 def stableKeystorePath = System.getenv("ACGC_KEYSTORE_PATH")
 def stableKeystorePassword = System.getenv("ACGC_KEYSTORE_PASSWORD")
+def unsignedBuild = System.getenv("ACGC_UNSIGNED_BUILD") == "1"
+
+if (unsignedBuild && (stableKeystorePath || stableKeystorePassword)) {
+    throw new GradleException("Unsigned builds must not receive signing credentials")
+}
 
 android {
     namespace "com.acgc.port"
@@ -53,13 +58,16 @@ android {
     }
 
     packaging {
-        jniLibs { useLegacyPackaging = false }
+        // SDL's existing loader uses extracted libraries (manifest setting).
+        jniLibs { useLegacyPackaging = true }
     }
 
     buildTypes {
         debug {
             debuggable true
-            if (stableKeystorePath && stableKeystorePassword) {
+            if (unsignedBuild) {
+                signingConfig null
+            } else if (stableKeystorePath && stableKeystorePassword) {
                 signingConfig signingConfigs.stable
             }
         }

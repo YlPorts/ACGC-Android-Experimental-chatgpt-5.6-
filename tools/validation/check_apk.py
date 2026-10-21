@@ -73,16 +73,31 @@ def main():
     parser.add_argument("--build-tools", type=Path, required=True)
     parser.add_argument("--keystore", type=Path)
     parser.add_argument("--match-signature", type=Path)
+    parser.add_argument("--unsigned", action="store_true",
+                        help="Validate an unsigned build input; never mark it as a signed candidate")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    if args.unsigned and (args.keystore or args.match_signature):
+        parser.error("--unsigned cannot be combined with certificate verification")
     sdk_tools = args.build_tools
     compiler = next((args.ndk / "toolchains/llvm/prebuilt").glob("*"))
     readelf = compiler / "bin/llvm-readelf"
     report = {"apk": args.apk.name, "sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
-              "release_status": "candidate", "gameplay_tested": False, "abis": {}}
+              "release_status": "unsigned-build" if args.unsigned else "candidate",
+              "gameplay_tested": False, "signature_verified": False, "abis": {}}
     with tempfile.TemporaryDirectory(prefix="acgc-apk-") as tmp:
         tmp = Path(tmp)
         with zipfile.ZipFile(args.apk) as apk:
+            if args.unsigned:
+                signatures = [n for n in apk.namelist()
+                              if re.match(r"META-INF/.*\.(SF|RSA|DSA|EC)$", n, re.IGNORECASE)]
+                assert not signatures, f"expected unsigned input, found JAR signatures: {signatures}"
+                # The APK v2/v3 signing block footer immediately precedes the
+                # central directory. Do not mistake a damaged signed APK for an
+                # intentionally unsigned Gradle output.
+                with args.apk.open("rb") as stream:
+                    stream.seek(max(0, apk.start_dir - 16))
+                    assert stream.read(16) != b"APK Sig Block 42", "expected unsigned input, found APK signing block"
             files = [n for n in apk.namelist() if n.startswith("lib/") and n.endswith(".so")]
             packaged_abis = {n.split("/")[1] for n in files}
             assert packaged_abis == set(args.abi), f"ABI mismatch: {packaged_abis} != {set(args.abi)}"
@@ -126,13 +141,20 @@ def main():
                 assert not unresolved, f"{abi}/{name}: unresolved {sorted(unresolved)}"
             report["abis"][abi] = descriptions
     output([sdk_tools / "zipalign", "-c", "-P", "16", "-v", "4", args.apk])
-    certificate = output([sdk_tools / "apksigner", "verify", "--verbose", "--print-certs", args.apk])
-    digest = re.search(r"certificate SHA-256 digest: ([0-9a-f]+)", certificate)[1]
-    report["certificate_sha256"] = digest
+    if args.unsigned:
+        verification = subprocess.run([str(sdk_tools / "apksigner"), "verify", str(args.apk)],
+                                      capture_output=True, text=True)
+        assert verification.returncode != 0, "expected unsigned input, but apksigner accepts its signature"
+        report["certificate_sha256"] = None
+    else:
+        certificate = output([sdk_tools / "apksigner", "verify", "--verbose", "--print-certs", args.apk])
+        digest = re.search(r"certificate SHA-256 digest: ([0-9a-f]+)", certificate)[1]
+        report["certificate_sha256"] = digest
+        report["signature_verified"] = True
     if args.keystore:
         cert = subprocess.check_output(["keytool", "-exportcert", "-alias", "acgc-public", "-keystore",
                                         str(args.keystore), "-storepass:env", "ACGC_KEYSTORE_PASSWORD"])
-        assert hashlib.sha256(cert).hexdigest() == digest, "APK is not signed with the existing stable key"
+        assert hashlib.sha256(cert).hexdigest() == digest, "APK is not signed with the configured persistent key"
     if args.match_signature:
         other = output([sdk_tools / "apksigner", "verify", "--print-certs", args.match_signature])
         expected = re.search(r"certificate SHA-256 digest: ([0-9a-f]+)", other)[1]

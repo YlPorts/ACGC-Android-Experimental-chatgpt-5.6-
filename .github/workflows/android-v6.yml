@@ -137,7 +137,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y ccache
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'cmake;3.22.1' "ndk;$NDK_VERSION"
-      - name: Prepare existing signing key
+      - name: Select persistent signing key or unsigned build input
         env:
           ACGC_SIGNING_KEY: ${{ secrets.ACGC_SIGNING_KEY }}
           ACGC_SIGNING_PASSWORD: ${{ secrets.ACGC_SIGNING_PASSWORD }}
@@ -147,11 +147,12 @@ jobs:
             printf '%s' "$ACGC_SIGNING_KEY" | base64 --decode > "$RUNNER_TEMP/acgc-signing.p12"
             echo "ACGC_KEYSTORE_PATH=$RUNNER_TEMP/acgc-signing.p12" >> "$GITHUB_ENV"
             echo "ACGC_KEYSTORE_PASSWORD=$ACGC_SIGNING_PASSWORD" >> "$GITHUB_ENV"
-          elif [ '${{ github.event_name }}' != pull_request ]; then
-            echo 'Existing ACGC signing secrets are required for distributable candidates.' >&2
-            exit 1
+          elif [ -z "$ACGC_SIGNING_KEY" ] && [ -z "$ACGC_SIGNING_PASSWORD" ]; then
+            echo 'ACGC_UNSIGNED_BUILD=1' >> "$GITHUB_ENV"
+            echo 'Signing secrets unavailable: build and validate unsigned inputs only. These are not installable candidates.' >> "$GITHUB_STEP_SUMMARY"
           else
-            echo 'Pull request build: development signature; no update-compatible APK will be published.'
+            echo 'ACGC_SIGNING_KEY and ACGC_SIGNING_PASSWORD must be configured together.' >&2
+            exit 1
           fi
       - name: Build architecture variant
         working-directory: android
@@ -169,15 +170,24 @@ jobs:
             arm64) LABEL=ARM64; ABIS=(--abi arm64-v8a) ;;
             arm32) LABEL=ARM32; ABIS=(--abi armeabi-v7a) ;;
           esac
-          APK="android/app/build/outputs/apk/$FLAVOR/debug/app-$FLAVOR-debug.apk"
           KEYCHECK=()
-          if [ -n "${ACGC_KEYSTORE_PATH:-}" ]; then KEYCHECK=(--keystore "$ACGC_KEYSTORE_PATH"); fi
+          if [ -n "${ACGC_KEYSTORE_PATH:-}" ]; then
+            APK="android/app/build/outputs/apk/$FLAVOR/debug/app-$FLAVOR-debug.apk"
+            KEYCHECK=(--keystore "$ACGC_KEYSTORE_PATH")
+            SUFFIX=''
+          else
+            INPUT="android/app/build/outputs/apk/$FLAVOR/debug/app-$FLAVOR-debug-unsigned.apk"
+            APK="$RUNNER_TEMP/acgc-$FLAVOR-aligned-unsigned.apk"
+            "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -P 16 4 "$INPUT" "$APK"
+            KEYCHECK=(--unsigned)
+            SUFFIX=-unsigned
+          fi
           python3 tools/validation/check_apk.py "$APK" "${ABIS[@]}" "${KEYCHECK[@]}" --ndk "$ANDROID_HOME/ndk/$NDK_VERSION" --build-tools "$ANDROID_HOME/build-tools/35.0.0" --output "build/validation/apk-$FLAVOR.json"
           mkdir -p dist
-          cp "$APK" "dist/Animal-Crossing-Android-V6.0-$LABEL.apk"
+          cp "$APK" "dist/Animal-Crossing-Android-V6.0-$LABEL$SUFFIX.apk"
           cp "build/validation/apk-$FLAVOR.json" dist/
           echo "APK_LABEL=$LABEL" >> "$GITHUB_ENV"
-          echo 'Candidate validated by automated checks. Android gameplay and Mali hardware acceptance remain required.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Native packaging checks passed. Only builds with signature_verified=true are signed candidates. Android gameplay and Mali hardware acceptance remain required.' >> "$GITHUB_STEP_SUMMARY"
       - name: Upload signed candidate
         if: env.ACGC_KEYSTORE_PATH != ''
         uses: actions/upload-artifact@v4
@@ -185,10 +195,10 @@ jobs:
           name: Animal-Crossing-Android-V6.0-${{ env.APK_LABEL }}
           path: dist/*
           if-no-files-found: error
-      - name: Upload validation report for development PR build
+      - name: Upload unsigned build input and validation report
         if: env.ACGC_KEYSTORE_PATH == ''
         uses: actions/upload-artifact@v4
         with:
-          name: V6-development-${{ matrix.flavor }}-validation
-          path: build/validation/*.json
+          name: V6-unsigned-${{ env.APK_LABEL }}-build
+          path: dist/*
           if-no-files-found: error
