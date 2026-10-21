@@ -53,8 +53,12 @@ def main():
         "address": (["pc/src/pc_address.c"], ["-pthread"], []),
         "gbi": (["pc/src/pc_gbi_runtime.c", "pc/src/pc_address.c"], [], []),
         "aram": (["pc/src/pc_aram.c"], [], []),
+        "os_contract": (["pc/src/pc_os.c"], ["-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections"], []),
         "dvd_audio": ([audio + "dvdthread.c", audio + "sample.c", "pc/src/pc_aram.c", "pc/src/pc_address.c"],
                       ["-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections"], []),
+        "dvd_backend": ([audio + "dvdthread.c", audio + "sample.c", "pc/src/pc_aram.c", "pc/src/pc_address.c",
+                         "pc/src/pc_dvd.c", "pc/src/pc_disc.c"],
+                        ["-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections"], []),
         "scene": ([], [], []),
         "language": (["pc/src/pc_language.c", "src/static/jaudio_NES/game/audioheaders.c",
                       "src/data/item/item_name.c"], [], []),
@@ -63,6 +67,8 @@ def main():
         "guest_memory": (["pc/src/pc_guest_memory.c"], [], []),
         "audio_commands": ([audio + name + ".c" for name in ("cmdstack", "rspsim", "sample", "rate")]
                            + ["pc/src/pc_address.c"], ["-lm"], []),
+        "audio_queue": ([audio + name + ".c" for name in ("os", "sub_sys", "audiowork")],
+                        ["-pthread", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections"], []),
         "nes": (["pc/src/pc_nes_fixnes.c"] + [str(p.relative_to(ROOT)) for p in sorted((ROOT / "pc/lib/fixnes").glob("*.c"))]
                 + [str(p.relative_to(ROOT)) for p in sorted((ROOT / "pc/lib/fixnes/mapper").glob("*.c"))],
                 ["-lm", "-Wl,--gc-sections", "-ffunction-sections", "-fdata-sections", "-O2"], []),

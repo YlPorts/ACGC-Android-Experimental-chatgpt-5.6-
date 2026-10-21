@@ -77,6 +77,8 @@ jobs:
         run: python3 tools/validation/check_save_layout.py --ndk "$ANDROID_HOME/ndk/$NDK_VERSION" --output build/validation/save-layout.json
       - name: Run host memory tests with ASan and UBSan
         run: python3 tools/validation/run_native_tests.py --sanitize --output build/tests/host
+      - name: Verify the Android native crash report decoder
+        run: python3 tools/validation/test_crash_trace.py
       - name: Run isolated ARM32 and AArch64 component tests
         run: |
           python3 tools/validation/run_native_tests.py --cc arm-linux-gnueabihf-gcc --cxx arm-linux-gnueabihf-g++ --runner qemu-arm --static --output build/tests/arm32
@@ -199,6 +201,17 @@ jobs:
           cp "build/validation/apk-$FLAVOR.json" dist/
           echo "APK_LABEL=$LABEL" >> "$GITHUB_ENV"
           echo 'Native packaging checks passed. Only builds with signature_verified=true are signed candidates. Android gameplay and Mali hardware acceptance remain required.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve matching native crash symbols for both ABIs
+        if: matrix.flavor == 'universal'
+        run: |
+          python3 tools/validation/collect_native_symbols.py dist/*.apk --ndk "$ANDROID_HOME/ndk/$NDK_VERSION" --output build/validation/native-symbols
+      - name: Upload matching native crash symbols
+        if: matrix.flavor == 'universal'
+        uses: actions/upload-artifact@v4
+        with:
+          name: V6-native-symbols-Universal
+          path: build/validation/native-symbols/
+          if-no-files-found: error
       - name: Upload signed candidate
         if: env.ACGC_KEYSTORE_PATH != ''
         uses: actions/upload-artifact@v4

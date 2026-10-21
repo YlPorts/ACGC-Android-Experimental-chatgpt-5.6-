@@ -1,6 +1,6 @@
 # Protocolo de aceptación V6
 
-Estado inicial de todos los casos de esta página: **pendiente**. No son resultados
+Estado inicial de los casos completos de esta página: **pendiente**. No son resultados
 obtenidos. Registrar APK, SHA-256, certificado, ABI de proceso, dispositivo, versión
 Android, GPU, versión de cada pack y logs. Objetivo principal: Galaxy A15 SM-A155M,
 Android 16/Mali; repetir los casos básicos en otro dispositivo y en ARM32.
@@ -11,9 +11,22 @@ ARAM nula y la copia parcial de una tarea DVD en ARM64. La nueva prueba de esta
 ruta usa fuentes de producción con disco sintético; la prueba de arranque en
 el teléfono con RC2 sigue pendiente y debe registrarse expresamente.
 
-Para actualizar RC1 a RC2, instalar la APK sobre la anterior sin desinstalar,
+**Resultado comunicado por el usuario:** ARM32 RC2 funciona; ARM64 y universal
+RC2 se cierran al iniciar. No considerar esas dos variantes aprobadas. RC3
+corrige los contratos nativos OS/DVD reproducidos en las pruebas; falta confirmar
+el arranque corregido y el resto del protocolo en el dispositivo.
+
+Al abrir RC3 después de un cierre, Android 11+ puede mostrar «El juego se cerró
+en el intento anterior». Elegir **Copiar informe** y pegar el texto para revisar
+señal, pila y Build ID. El botón **Reintentar juego** permite continuar después.
+No se necesita un PC ni borrar datos. Si vuelve a cerrarse, reabrir la app y
+copiar el informe nuevo. Una traza que Android ya haya descartado no puede
+recuperarse; en ese caso obtener `adb logcat -b crash -d`. La lectura del informe
+y su interacción todavía no se han ejecutado físicamente en este entorno.
+
+Para actualizar RC1/RC2 a RC3, instalar la APK sobre la anterior sin desinstalar,
 borrar datos ni cambiar la carpeta de juego. Ambas usan el mismo certificado
-V6; RC2 tiene `versionCode=7`. Comprobarlo con `apksigner verify --print-certs`
+V6; RC3 tiene `versionCode=8`. Comprobarlo con `apksigner verify --print-certs`
 y `aapt dump badging` antes de la prueba. Un error de certificado no se resuelve
 borrando el pueblo. Si persiste un cierre, conservar `adb logcat -b crash -d`,
 `adb logcat -d` y `save/startup-stage.txt` del almacenamiento privado. Estas APK

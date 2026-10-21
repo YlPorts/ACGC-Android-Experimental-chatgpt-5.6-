@@ -1,4 +1,4 @@
-# Animal Crossing Android V6.0 RC2 — estado técnico
+# Animal Crossing Android V6.0 RC3 — estado técnico
 
 Esta rama contiene una implementación nativa ARM64 y conserva la compilación
 ARM32 sobre V5 / PC 0.9.3. Es una **candidata de desarrollo**, no una versión
@@ -31,9 +31,69 @@ MRAM/ARAM, estados/callbacks, la barrera de finalización y archivo ausente.
 Antes de la corrección falla en la escritura nula; después comprueba los bytes
 transferidos. Esto no equivale a haber arrancado una partida Android.
 
-La candidata usa `versionCode=7`, `versionName=6.0-rc2-pc0.9.3` y el mismo
-certificado V6. Puede reemplazar RC1 firmada con ese certificado sin desinstalar
+La candidata actual usa `versionCode=8`, `versionName=6.0-rc3-pc0.9.3` y el mismo
+certificado V6. Puede reemplazar RC1/RC2 firmadas con ese certificado sin desinstalar
 ni borrar datos. Las etiquetas RC1 permanecen inmutables para diagnóstico.
+
+## Fallo ARM64 pendiente en RC2 y correcciones de RC3
+
+El usuario confirma que ARM32 RC2 funciona y que ARM64/universal RC2 siguen
+cerrándose al iniciar. Esa aceptación de ARM64 permanece **pendiente**. No se ha
+recibido una traza del dispositivo ni se atribuye todo el cierre a una causa
+sin esa evidencia. Se han encontrado y reproducido estos defectos reales:
+
+- `pc_dvd.c` escribía `DVDFileInfo` mediante offsets GC fijos (`0x18`, `0x30`,
+  `0x34`) y sólo limpiaba 60 bytes. En LP64 los punteros anteriores desplazan
+  sus campos: el consumidor veía una longitud distinta de la escrita por el
+  backend. `JKRDvdFile` utiliza directamente esa longitud durante el arranque.
+  Ahora el backend incluye el encabezado real, accede a `cb.addr`, `startAddr`
+  y `length`, limpia `sizeof(DVDFileInfo)` y conserva offsets de disco de 32 bits.
+  No se cambia ningún formato de ISO/CISO, pack ni guardado.
+- `pc_os.c` duplicaba las estructuras OS. Su cola reservaba 16 bytes fijos para
+  dos colas de hilos; en ARM64 necesitan 32. Los campos que el motor lee
+  directamente no coincidían con los que escribía el backend. También se
+  sustituyen el hilo de relleno y los tamaños inventados de contexto/alarma
+  por los tipos compartidos: limpiar 1024 bytes no era válido para `OSContext`.
+  Se conservan las rutas de ejecución PC y las operaciones existentes; no se
+  desactivan hilos, audio ni módulos adicionales.
+- Los receptores de comandos jaudio reservaban un `u32`/`s32` local y lo
+  entregaban como `OSMesg*`. En LP64 `Z_osRecvMesg` escribía ocho bytes sobre
+  cuatro, incluso al devolver una cola vacía. ASan reproduce el desbordamiento
+  en `Nap_CheckSpecChange`. Se separa la recepción de comandos/IDs `u32` de
+  la recepción de punteros nativos; se corrigen cambio de especificación,
+  comandos por fotograma, precarga y finalizaciones. El receptor de eventos
+  de sonido NES también usa un objeto de mensaje completo y decodifica sus
+  dos bytes de comando explícitamente, en lugar de escribir sobre dos bytes.
+  Los receptores del menú de arranque, incluido `initial_menu_cleanup()` que
+  se ejecuta antes de entrar al motor principal, reciben asimismo un
+  `OSMessage` completo en lugar de escribir un puntero sobre un `int` local.
+
+Los nuevos casos `os_contract` y `dvd_backend` fallan contra RC2 antes de las
+correcciones. El segundo usa **pc_disc + pc_dvd + dvdthread + ARAM de producción**
+con una imagen sintética de sistema de archivos y bytes propios: comprueba ISO
+por descriptor prestado, CISO cruzando bloques, archivos extraídos, audio externo
+ya activado y fallback USA cuando desaparece ese archivo. No sustituye el backend
+DVD. La validación completa de SafeBoot sigue en `language_test`.
+El caso `audio_queue` ejecuta la cola y el consumidor originales, reproduce el
+desbordamiento antes del cambio y comprueba cola vacía, IDs, comando con el bit
+alto, memoria adyacente intacta y punteros completos después. El adaptador Linux
+de sincronización usa pthreads; la aplicación sigue enlazando SDL2.
+
+Android 11+ consulta el historial de cierres de su propio proceso al abrir el
+lanzador. Un fallo anterior ofrece «Copiar informe» o «Reintentar» para evitar
+perder la traza al repetir automáticamente el arranque. Android 12+ devuelve
+tombstones nativos **protobuf**; el lector decodifica señal, dirección, hilo,
+pila y Build IDs con límites de tamaño. Omite dumps de memoria y no transmite
+datos a ninguna red. El texto se guarda en `files/last-crash.txt`; el informe
+indica la versión instalada, fecha del cierre y última etapa disponible, que
+puede pertenecer a un intento anterior. Android puede haber descartado la traza;
+en ese caso se indica expresamente. Esta interfaz requiere prueba en dispositivo.
+
+CI ejecuta pruebas del lector Java (direcciones ARM64, ARM32, orden de campos,
+campos desconocidos y entradas truncadas/inválidas). También conserva símbolos
+DWARF de motor y SDL para ambas ABI, **sólo si sus Build IDs coinciden con las
+bibliotecas del APK**, como artifact `V6-native-symbols-Universal`. Esto permite
+simbolizar el próximo cierre sin adivinar direcciones de otra compilación.
 
 ## Cambios del motor
 
@@ -113,11 +173,12 @@ instalar; no se afirma que se carguen directamente desde el ZIP.
 | Paquete completo | Verificado | Todas las `.so`, ABI, dependencias, JNI, firma y zipalign |
 | Layout persistente V5 | 98/98 en ambas ABI | Comparación con baseline ARM32 intacta |
 | Serializador de partidas | Ida/vuelta cruzada ARM32 ↔ AArch64 | Payload válido sintético de 148128 bytes |
-| Pruebas de componentes | 14 casos en host/ARM32/AArch64 | ASan/UBSan en host; ejecutables ARM bajo QEMU |
+| Pruebas de componentes | 17 casos en host/ARM32/AArch64 | ASan/UBSan en host; ejecutables ARM bajo QEMU |
+| Informe de cierre | Lector Java probado y aplicación compilada | Historial Android/UI pendientes en dispositivo |
 | Workflow | actionlint correcto | Además de compilación/configuración Gradle local |
 
-Los catorce casos cubren referencias concurrentes con direcciones superiores a 4 GB,
-GBI estático/dinámico/binario, ARAM y callbacks, la ruta DVD de carga del audio de arranque, comandos de escenas, Multi5 y
+Los diecisiete casos cubren referencias concurrentes con direcciones superiores a 4 GB,
+GBI estático/dinámico/binario, ARAM y callbacks, contratos OS, lector DVD real y carga del audio de arranque, comandos de escenas, Multi5 y
 SafeBoot con packs sintéticos, bancos NEOS, IBNK/WSYS originales incluidos en el
 código, traducción de direcciones DOL, colas y copia DSP, NES, serializador y
 entradas RARC y asignación/redimensionado/liberación real del heap con tamaños y alineaciones variados. La prueba NES ejecuta el **wrapper de producción**

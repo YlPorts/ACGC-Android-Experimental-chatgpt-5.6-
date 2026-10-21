@@ -2324,12 +2324,12 @@ s32 Nas_CheckBgWave(s32 reset_status) {
 
     if (AG.num_requested_samples > 0) {
         if (reset_status != 0) {
-            Z_osRecvMesg(&AG.preload_sample_queue, (OSMesg*)&preload_idx, OS_MESG_NOBLOCK);
+            Z_osRecvMesgU32(&AG.preload_sample_queue, &preload_idx, OS_MESG_NOBLOCK);
             AG.num_requested_samples = 0;
             return FALSE;
         }
 
-        if (Z_osRecvMesg(&AG.preload_sample_queue, (OSMesg*)&preload_idx, OS_MESG_NOBLOCK) == -1) {
+        if (Z_osRecvMesgU32(&AG.preload_sample_queue, &preload_idx, OS_MESG_NOBLOCK) == -1) {
             return FALSE;
         }
 
@@ -2583,7 +2583,7 @@ void MK_FrameWork(void) {
     u32 ret;
     u8* rmes;
 
-    if (Z_osRecvMesg(&MK_QUEUE, (OSMesg*)&ret, OS_MESG_NOBLOCK) != -1) {
+    if (Z_osRecvMesgU32(&MK_QUEUE, &ret, OS_MESG_NOBLOCK) != -1) {
         idx = ret >> 24;
         rmes = MK_RMES[idx];
         if (rmes != NULL) {
