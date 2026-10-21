@@ -1,6 +1,14 @@
 name: Verify externally signed V6 candidates
 
 on:
+  workflow_call:
+    inputs:
+      build_run_id:
+        type: string
+        required: true
+      release_tag:
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       build_run_id:

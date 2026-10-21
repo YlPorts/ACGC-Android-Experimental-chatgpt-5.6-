@@ -165,6 +165,9 @@ artifacts con sus nombres normales. Este paso no convierte la candidata en
 estable ni sustituye las pruebas de dispositivo. La comparación se ha probado
 localmente con un input real de Actions y rechaza cambios de `classes.dex` o un
 certificado distinto.
+Se puede iniciar desde el workflow principal ya registrado, pasando los inputs
+manuales `signed_build_run_id` y `signed_release_tag`; sin esos inputs se ejecuta
+la compilación normal.
 
 Productos de la candidata firmada:
 

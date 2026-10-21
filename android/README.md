@@ -103,6 +103,8 @@ Para una clave mantenida fuera de GitHub, el workflow manual
 `v6.0-rcN` con los inputs de una ejecución V6 correcta del mismo commit. Verifica
 que sólo se añadieron firmas, exige el certificado V6 y sube las tres candidatas
 como artifacts. No recibe claves privadas ni permite cambiar el código compilado.
+Puede iniciarse desde el workflow principal con los inputs manuales
+`signed_build_run_id` y `signed_release_tag`. Dejarlos vacíos compila normalmente.
 
 Las pruebas QEMU son ejecutables Linux de componentes; los APK usan código NDK
 nativo de cada ABI. No se dispone de teléfono, GPU Mali, imagen de juego, pueblos

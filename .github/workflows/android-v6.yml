@@ -2,6 +2,15 @@ name: Animal Crossing Android V6.0 candidates
 
 on:
   workflow_dispatch:
+    inputs:
+      signed_build_run_id:
+        description: Optional successful build to verify after external signing (leave empty for a normal build)
+        type: string
+        default: ''
+      signed_release_tag:
+        description: Matching published v6.0-rcN tag when verifying externally signed APKs
+        type: string
+        default: ''
   workflow_call:
     inputs:
       products:
@@ -45,6 +54,7 @@ env:
 
 jobs:
   native-tests:
+    if: inputs.signed_build_run_id == ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -203,3 +213,13 @@ jobs:
           name: V6-unsigned-${{ env.APK_LABEL }}-build
           path: dist/*
           if-no-files-found: error
+
+  verify-signed:
+    if: github.event_name == 'workflow_dispatch' && inputs.signed_build_run_id != ''
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/android-v6-verify-signatures.yml
+    with:
+      build_run_id: ${{ inputs.signed_build_run_id }}
+      release_tag: ${{ inputs.signed_release_tag }}
