@@ -2,7 +2,9 @@
 
 A native PC port of Animal Crossing (GameCube) built on top of the [ac-decomp](https://github.com/ACreTeam/ac-decomp) decompilation project.
 
-The game's original C code runs natively on x86, with a custom translation layer replacing the GameCube's GX graphics API with OpenGL 3.3.
+The game's original C code runs natively, with a custom translation layer replacing the GameCube's GX graphics API with OpenGL 3.3 on desktop and OpenGL ES 3.0 on Android.
+
+The `android-v6-arm64` branch contains the **V6.0 RC1 development candidate** for native ARM64 and ARM32, based on PC 0.9.3 / Android V5. See the [technical report](docs/V6_ARM64_REPORT_ES.md) and [pending device tests](docs/V6_DEVICE_TESTS_ES.md). Android gameplay has not been verified; this is not a stable release. The new authorized V6 signing certificate cannot directly update V5 installations signed with another key.
 
 This repository does not contain any game assets or assembly whatsoever. An existing copy of the game is required.
 
@@ -60,12 +62,12 @@ pacman -S mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-i686-SDL2 mingw-w64-
 
 ### Android (experimental)
 
-An SDL2/NDK Android project is available in [`android/`](android/README.md). It uses OpenGL ES 3.0, an Android ROM picker with automatic reuse on later launches, private save storage, edge-to-edge cutout support, and a movable/hideable on-screen multi-touch GameCube controller. The current Android target is `armeabi-v7a` because the decompilation stores live pointers in 32-bit fields.
+An SDL2/NDK Android project is available in [`android/`](android/README.md). V6 builds `armeabi-v7a`, `arm64-v8a`, and a universal APK. The existing GLES renderer, SAF folder selection and save synchronization, touch controller, physical controller support and Multi5/SafeBoot remain in the source. Compiling and component tests do not establish gameplay compatibility; see the report above.
 
 ```bash
 git submodule update --init --recursive
 cd android
-./gradlew assembleDebug
+./gradlew assembleUniversalDebug assembleArm64Debug assembleArm32Debug
 ```
 
 No ROM or copyrighted game assets are bundled in the APK. The user selects their own compatible USA Rev 0 disc image on first launch.

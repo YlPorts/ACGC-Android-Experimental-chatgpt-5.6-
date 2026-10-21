@@ -1,60 +1,105 @@
-# Animal Crossing Android port
+# Animal Crossing Android V6.0 RC1
 
-This directory packages the native PC port as an SDL2 Android application. It does **not** contain a ROM, game assets, keys, or extracted Nintendo data.
+Candidata de desarrollo del port nativo SDL2/GLES, basada en Android V5 y PC
+0.9.3. Compila el motor real para ARM64 y ARM32. No incluye una imagen de disco.
+**No se ha probado una partida en Android ni se presenta como versión estable.**
 
-## Current target
+## Productos y herramientas
 
-- ABI: `armeabi-v7a` (32-bit ARM)
-- Graphics: OpenGL ES 3.0
-- Minimum Android version: Android 6.0 (API 23)
-- Disc images: USA Rev 0 (`GAFE01_00`) in ISO, GCM, or CISO format
+| Variante | ABI |
+| --- | --- |
+| Universal | `armeabi-v7a` y `arm64-v8a` |
+| ARM64 | `arm64-v8a` |
+| ARM32 | `armeabi-v7a` |
 
-The 32-bit ABI is intentional. The decompilation and the PC translation layer store many live pointers in `u32` fields. A safe ARM64 build requires a separate pointer-token/refactoring effort; simply enabling `arm64-v8a` will corrupt pointers at runtime.
+Se conserva `com.acgc.port`, OpenGL ES 3.0 y minSdk 23 (Android 6.0).
+JDK 17, SDK 35, build-tools 35.0.0, NDK r28c `28.2.13676358`, CMake 3.22.1,
+Gradle 8.11.1 y SDL2 2.30.11 están fijados en la configuración.
 
-## Build in Android Studio
-
-1. Clone with submodules:
-
-   ```bash
-   git clone --recursive https://github.com/flyngmt/ACGC-PC-Port.git
-   cd ACGC-PC-Port/android
-   ```
-
-2. Open the `android` directory in Android Studio.
-3. Install Android SDK 34, NDK, and CMake when prompted.
-4. Select the `app` configuration and build or run it on a 32-bit-compatible Android device.
-
-Command-line build:
-
-```bash
+```sh
+git clone --recurse-submodules https://github.com/YlPorts/ACGC-Android-Experimental-chatgpt-5.6-.git
+cd ACGC-Android-Experimental-chatgpt-5.6-
+git switch android-v6-arm64
 cd android
-./gradlew assembleDebug
+./gradlew --no-daemon --max-workers=3 assembleUniversalDebug assembleArm64Debug assembleArm32Debug
 ```
 
-The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
+Los APK aparecen en `app/build/outputs/apk/{universal,arm64,arm32}/debug/`.
+Android Studio puede abrir esta carpeta y seleccionar cualquiera de esas
+variantes. El motor se compila con las opciones de optimización originales del
+port; estas candidatas mantienen la depuración Android para investigar fallos.
 
-## First launch
+## Datos y controles existentes
 
-The launcher asks the user to select their own disc image through Android's Storage Access Framework. It copies the selected file into the app's private storage, along with the runtime shaders. Save data, settings, and shader caches remain private to the app.
+El selector SAF concede acceso persistente a la carpeta de juego. Las imágenes
+USA Rev 0 (`GAFE01_00`) ISO/GCM/CISO se abren mediante descriptor de archivo; no se
+copian enteras al almacenamiento privado. La estructura externa sigue siendo:
 
-After the first valid disc image is copied, later cold launches start the game directly without asking for the ROM again. The in-game **⚙** button returns to the ROM selector when needed.
+```text
+roms/             # imagen principal
+roms/nes/         # ROMs adicionales
+textures/         # DDS
+languages/        # es, fr, de, it y formatos Multi5 anteriores
+saves/            # partidas sincronizadas
+config/           # settings.ini y keybindings.ini
+cache/
+```
 
-The game activity uses edge-to-edge immersive mode, including supported display cutouts. It includes transparent multi-touch controls for the main stick, D-pad, C-stick, A/B/X/Y, L/R/Z, and Start. Open **⚙** to hide the controls, drag them to custom positions, or restore the default layout. Visibility and positions are remembered. SDL2 gamepads and physical keyboards continue to work.
+Los recursos pequeños se reflejan en el directorio privado del motor. Las
+partidas y configuración se sincronizan con la carpeta externa. Las preferencias
+Android y las posiciones de controles también usan `shared_prefs` privado; una
+copia de `config/` no respalda por sí sola esas preferencias.
 
-The launcher and the in-game **⚙** menu also open **ROMs de NES y texturas**:
+Permanecen los controles multitáctiles, stick/C-stick/cruceta, A/B/X/Y, L/R/Z,
+START, edición de posiciones, tamaño/opacidad/ocultación y soporte SDL de mandos.
+Se conservan los menús existentes, DDS, modos de aspecto y opciones de FPS.
+Los packs Multi5 mantienen sus formatos y SafeBoot no activa audio PAL por la
+mera presencia de archivos. Conservar estas rutas de código no acredita aún su
+funcionamiento completo en ARM64: requieren la aceptación de dispositivo.
 
-- Files with extension .nes and a valid iNES header can be added or deleted. They are stored in the app's private nes_roms directory and appear in Animal Crossing's NES cartridge list.
-- A ZIP containing Dolphin-compatible .dds files can be installed or removed. Installation safely replaces the private texture_pack directory and clears its cache.
+## Firma y actualización
 
-## Stable APK signing
+El propietario autorizó una **clave persistente nueva** para las tres candidatas
+V6. Su certificado SHA-256 es:
 
-The workflow can sign builds with a private PKCS#12 key. Add these repository secrets:
+```text
+265e4f32ba1e44b346e8361941a3e0f02f3549ea5e6d9bbecf29f6ccebdaeccc
+```
 
-- ACGC_SIGNING_KEY: the PKCS#12 file encoded as a single-line Base64 value.
-- ACGC_SIGNING_PASSWORD: the key password.
+Android no permite una actualización directa de una V5 firmada con otra clave.
+Verificar copias externas del pueblo/configuración y de las preferencias
+privadas antes de cambiar de instalación. No desinstalar con la única copia del
+pueblo dentro de la app. Consultar el [protocolo de migración y pruebas](../docs/V6_DEVICE_TESTS_ES.md).
 
-The key alias must be acgc-public. If either secret is absent, GitHub Actions falls back to Android's temporary debug signature.
+Gradle usa `ACGC_KEYSTORE_PATH` y `ACGC_KEYSTORE_PASSWORD`, con PKCS12 y alias
+`acgc-public`. Sin esas variables, el build local ordinario lleva firma de
+desarrollo; no es intercambiable con la candidata firmada. `ACGC_UNSIGNED_BUILD=1`
+produce explícitamente un input sin firma.
 
-## GitHub Actions
+## GitHub Actions y alcance de las comprobaciones
 
-The `Build Android APK` workflow checks out SDL2, builds the `armeabi-v7a` APK, and uploads `Animal-Crossing-Port-Android.apk` inside the `Animal-Crossing-Port-Android` workflow artifact. Run it manually from the repository's Actions tab after pushing this branch to a fork or a repository where you have write access.
+El workflow `Animal Crossing Android V6.0 candidates` prueba componentes, layouts
+persistentes y serialización cruzada, y compila las tres variantes. Comprueba
+todas las bibliotecas empaquetadas, ABI/ELF, dependencias, los 54 métodos JNI de
+las clases compiladas, alineación ELF64 de 16 KB, zipalign y estado de firma.
+Los workflows manuales de 32/64 bits reutilizan esa validación.
+
+Con los secretos `ACGC_SIGNING_KEY` (PKCS12 en base64) y
+`ACGC_SIGNING_PASSWORD`, los artifacts firmados contienen:
+
+- `Animal-Crossing-Android-V6.0-Universal.apk`
+- `Animal-Crossing-Android-V6.0-ARM64.apk`
+- `Animal-Crossing-Android-V6.0-ARM32.apk`
+
+La integración de esta sesión no puede configurar secretos GitHub (HTTP 403).
+Sin ambos secretos CI publica únicamente inputs `-unsigned.apk` en artifacts
+`V6-unsigned-…-build`, con `signature_verified=false`. No son instalables ni se
+confunden con las candidatas firmadas en el entorno local. Una configuración de
+secretos incompleta falla. No se generan claves temporales por variante ni se
+publica material privado de firma.
+
+Las pruebas QEMU son ejecutables Linux de componentes; los APK usan código NDK
+nativo de cada ABI. No se dispone de teléfono, GPU Mali, imagen de juego, pueblos
+V4/V5 ni packs externos completos para verificar una partida o medir rendimiento.
+El [informe técnico](../docs/V6_ARM64_REPORT_ES.md) distingue resultados comprobados
+y aceptación pendiente.
