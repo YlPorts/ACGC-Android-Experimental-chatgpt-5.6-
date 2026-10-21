@@ -1,8 +1,10 @@
-# Animal Crossing Android V6.0 RC1
+# Animal Crossing Android V6.0 RC5
 
 Candidata de desarrollo del port nativo SDL2/GLES, basada en Android V5 y PC
 0.9.3. Compila el motor real para ARM64 y ARM32. No incluye una imagen de disco.
-**No se ha probado una partida en Android ni se presenta como versión estable.**
+**Candidata: RC4 ya carga en el teléfono, pero tiene fallos gráficos y no suena la música. RC5 corrige un fallo reproducido del layout de colores ARM64; imagen y música requieren validación en el dispositivo.**
+
+Instalar sobre RC1–RC4 sin desinstalar ni borrar datos: RC5 mantiene la firma V6 y sube a `versionCode=10`. Para investigar la música, usar **Atrás → Opciones → Sistema → Copiar diagnostico** después de entrar al juego.
 
 ## Productos y herramientas
 

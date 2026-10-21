@@ -1,12 +1,60 @@
-# Animal Crossing Android V6.0 RC4 — estado técnico
+# Animal Crossing Android V6.0 RC5 — estado técnico
 
 Esta rama contiene una implementación nativa ARM64 y conserva la compilación
 ARM32 sobre V5 / PC 0.9.3. Es una **candidata de desarrollo**, no una versión
-estable ni una afirmación de que se haya jugado en Android.
+estable ni una afirmación de compatibilidad completa en Android.
 
 Base: `d717e971bb684a36549ac9b2d7d3879a3a296fc5` de `master`.
 SDL2: 2.30.11, submódulo `fa24d868ac2f8fd558e4e914c9863411245db8fd`.
 La inspección anterior a las modificaciones está en [la auditoría inicial](V6_ARM64_AUDIT_ES.md).
+
+## RC5: reproducción y corrección de colores negros en ARM64
+
+El usuario confirma que **RC4 ARM64 carga y responde a los controles**, pero
+muestra el logo sobre negro, modelos como siluetas, menús ilegibles y ausencia
+de música. Sus capturas del Galaxy A15/Android 16 son evidencia de ese fallo;
+**RC4 ARM32 no ha sido probado por el usuario**. La corrección de arranque de RC4
+permanece; estas observaciones no superan la aceptación de una partida completa.
+
+La prueba GLES nueva reproduce el fallo de color con la cabecera exacta de RC4
+(`71a9b2d7b3d2aa048fa3f0d59ac61e8e5c0b9d6d`): `Gsetcolor.color` era
+`unsigned long`. En LP64 mide ocho bytes y empieza en el offset 8, donde `Gfx`
+guarda la referencia nativa auxiliar. El color real sigue en `w1`, offset 4.
+Por tanto colores de primitiva, entorno, niebla, mezcla y relleno se leían desde
+otra posición. En una lista dinámica el píxel RGB esperado `(180,120,60)` salía
+`(0,0,0)`. Con el campo `u32` vuelve a `(180,120,60)`. No se altera la iluminación
+ni se fuerzan materiales blancos. ARM32 conserva el layout de ocho bytes.
+
+Se añaden aserciones del offset y tamaño de `Gsetcolor` y de los cuatro words de
+`Hilite`. Además se distingue en `gsMoveWd` el operando de dirección de SEGMENT de
+los inmediatos (luces, niebla, clipping); los estáticos no deben sustituir esos
+valores por el marcador de referencias. `GXSetTevColorS10` recibe ahora el
+`GXColorS10` completo, como declara la API original, en lugar de cuatro escalares.
+
+`run_gles_tests.py` crea un contexto EGL/GLES 3 con Mesa y ejecuta el backend GX,
+los shaders Android y el intérprete Emu64 reales. Comprueba nueve píxeles
+esperados en cada modo (especializado y uber): material, color S10, iluminación,
+textura CI4 y paleta, textura iluminada, primitiva, entorno, rectángulo de menú y
+modelo con matrices fijas. No necesita ISO ni sustituye el render por stubs.
+Estas pruebas de software **no son una prueba de partida ni de la GPU Mali**.
+
+La ausencia de música sigue **pendiente de diagnóstico en el teléfono**. La nueva prueba `audio_synthesis`
+decodifica un banco sintético BE y usa `Nas_DriveRsp` y `RspStart` de producción
+para generar 12 bloques PCM de S8 y 12 de ADPCM, incluyendo bucles. ARM32 y
+AArch64 producen exactamente los mismos 15360 bytes, SHA-256
+`9e2bda804a79d613eb2b789ce27e07f317422f25ef2add5502e71769fd5ea2e1`.
+No reproduce la secuencia ni el banco reales del juego, que no están disponibles.
+
+RC5 añade `diagnostics.txt` local, limitado a 64 KiB y probado con escritores
+concurrentes. Registra GPU/GLES, fallos de shader, bancos/secuencias NEOS,
+estado de los grupos musicales, error de audio y picos PCM del sintetizador y
+la mezcla. Desde **Atrás → Opciones → Sistema → Copiar diagnostico** se copia
+el informe al portapapeles; no se envía automáticamente. SafeBoot y la activación
+explícita de audio PAL permanecen intactos; no se modifican packs ni guardados.
+
+RC5 usa `versionCode=10`, `versionName=6.0-rc5-pc0.9.3` y el mismo certificado
+persistente V6 para actualizar RC1–RC4 sin desinstalar ni borrar datos. Sigue
+siendo una candidata: requiere verificar imagen y música en el dispositivo.
 
 ## Cierre ARM64 de RC3: heap del sistema nulo
 
@@ -49,7 +97,7 @@ placement y no cubría la creación inicial: por eso no detectaba este fallo.
 
 La copia del informe nativo ya se ha utilizado en el teléfono del usuario.
 Esto confirma esa ruta de diagnóstico en ese dispositivo; no acredita el
-arranque ni la partida de RC4. Las tres variantes RC4 requieren confirmación
+la partida completa de RC4. El usuario confirmó después el arranque parcial con fallos gráficos y sin música; RC4 no supera aceptación. Las tres variantes RC4 requieren confirmación
 física; no se declaran estables. Se usa la misma firma V6, `versionCode=9` y
 `versionName=6.0-rc4-pc0.9.3`, para actualizar sin desinstalar ni borrar datos.
 
@@ -76,8 +124,8 @@ MRAM/ARAM, estados/callbacks, la barrera de finalización y archivo ausente.
 Antes de la corrección falla en la escritura nula; después comprueba los bytes
 transferidos. Esto no equivale a haber arrancado una partida Android.
 
-La candidata actual usa `versionCode=9`, `versionName=6.0-rc4-pc0.9.3` y el mismo
-certificado V6. Puede reemplazar RC1/RC2/RC3 firmadas con ese certificado sin desinstalar
+La candidata actual usa `versionCode=10`, `versionName=6.0-rc5-pc0.9.3` y el mismo
+certificado V6. Puede reemplazar RC1/RC2/RC3/RC4 firmadas con ese certificado sin desinstalar
 ni borrar datos. Las etiquetas RC1 permanecen inmutables para diagnóstico.
 
 ## Fallo ARM64 pendiente en RC2 y correcciones de RC3
@@ -218,11 +266,13 @@ instalar; no se afirma que se carguen directamente desde el ZIP.
 | Paquete completo | Verificado | Todas las `.so`, ABI, dependencias, JNI, firma y zipalign |
 | Layout persistente V5 | 98/98 en ambas ABI | Comparación con baseline ARM32 intacta |
 | Serializador de partidas | Ida/vuelta cruzada ARM32 ↔ AArch64 | Payload válido sintético de 148128 bytes |
-| Pruebas de componentes | 18 casos en host/ARM32/AArch64 | ASan/UBSan en host; ejecutables ARM bajo QEMU |
+| Pruebas de componentes | 20 casos en host/ARM32/AArch64 | ASan/UBSan en host; ejecutables ARM bajo QEMU |
+| Render GLES | Nueve comprobaciones por modo de shader | Mesa EGL, GX/TEV/Emu64 reales; sin Mali físico |
+| Síntesis NEOS | PCM idéntico ARM32/AArch64 | S8/ADPCM y bucles sintéticos; música real pendiente |
 | Informe de cierre | Lector Java probado; informe RC3 obtenido por el usuario | Pila y Build ID exactos en Galaxy A15/Android 16 |
 | Workflow | actionlint correcto | Además de compilación/configuración Gradle local |
 
-Los dieciocho casos cubren referencias concurrentes con direcciones superiores a 4 GB,
+Los veinte casos cubren referencias concurrentes con direcciones superiores a 4 GB,
 GBI estático/dinámico/binario, ARAM y callbacks, contratos OS, lector DVD real y carga del audio de arranque, comandos de escenas, Multi5 y
 SafeBoot con packs sintéticos, bancos NEOS, IBNK/WSYS originales incluidos en el
 código, traducción de direcciones DOL, colas y copia DSP, NES, serializador y

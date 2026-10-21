@@ -18,6 +18,7 @@
 #define NEOSTHREAD_ACMD_BUF_NUM 1600
 
 #ifdef TARGET_PC
+#include "pc_diagnostics.h"
 /*==========================================================================
  * PC: Synchronous NEOS — no thread, DVD loads complete synchronously.
  *==========================================================================*/
@@ -54,6 +55,10 @@ extern u32 Neos_Update(s16* dst) {
                 if (v > peak) peak = v;
             }
             printf("[NEOS_OUT] frame=%u tasks=%u peak=%d\n", neos_diag_ctr, pc_tasks[cur], peak);
+            pc_diagnostics_log("NEOS: frame=%u commands=%u peak=%d error=0x%x", neos_diag_ctr, pc_tasks[cur], peak, AG.audio_error_flags);
+            pc_diagnostics_log("Music groups: 1 enabled=%u seq=%u bank=%u muted=%u fade=%.3f; 3 enabled=%u seq=%u bank=%u muted=%u fade=%.3f",
+                AG.groups[1].flags.enabled, AG.groups[1].seq_id, AG.groups[1].bank_id, AG.groups[1].flags.muted, AG.groups[1].fade_volume,
+                AG.groups[3].flags.enabled, AG.groups[3].seq_id, AG.groups[3].bank_id, AG.groups[3].flags.muted, AG.groups[3].fade_volume);
         }
     }
 

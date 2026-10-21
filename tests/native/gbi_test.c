@@ -14,6 +14,19 @@ static Gfx list[] = {
     gsSPVertex(SEGMENT_ADDR(8, 32), 4, 0),
     gsSPEndDisplayList(),
 };
+static Gfx colors[] = {
+    gsDPSetPrimColor(3, 5, 180, 120, 60, 255),
+    gsDPSetEnvColor(11, 22, 33, 44),
+    gsDPSetFogColor(55, 66, 77, 88),
+    gsDPSetBlendColor(99, 111, 122, 133),
+    gsDPSetFillColor(0x12345678),
+};
+static Gfx immediate[] = {
+    gsSPNumLights(NUMLIGHTS_2),
+    gsSPFogPosition(10, 900),
+    gsSPClipRatio(FRUSTRATIO_2),
+    gsSPSegment(8, texture),
+};
 
 int main(void) {
     union { Gfx native[2]; unsigned char bytes[2 * sizeof(Gfx)]; } raw = {0};
@@ -37,7 +50,22 @@ int main(void) {
 #endif
     assert(sizeof(u32) == 4 && sizeof(s32) == 4);
     assert(sizeof(Vtx) == 16 && sizeof(Mtx) == 64);
+    assert(sizeof(Hilite) == 16 && sizeof(Gsetcolor) == 8);
+    assert(offsetof(Gsetcolor, color) == 4);
     assert(offsetof(Gwords, w1) == 4);
+    const u32 expected_colors[] = {0xb4783cff, 0x0b16212c, 0x37424d58, 0x636f7a85, 0x12345678};
+    for (unsigned i = 0; i < sizeof(colors) / sizeof(colors[0]); ++i)
+        assert(colors[i].setcolor.color == expected_colors[i]);
+    Gfx dynamic_color;
+    memset(&dynamic_color, 0, sizeof(dynamic_color));
+    gDPSetPrimColor(&dynamic_color, 3, 5, 180, 120, 60, 255);
+    assert(dynamic_color.setcolor.color == expected_colors[0]);
+    assert(dynamic_color.setcolor.prim_min_level == 3 && dynamic_color.setcolor.prim_level == 5);
+    assert(immediate[0].words.w1 == NUML(NUMLIGHTS_2));
+    assert(immediate[1].words.w1 == (u32)((_SHIFTL((s16)(128000 / (900 - 10)), 16, 16)) |
+                                      _SHIFTL((s16)((500 - 10) * 256 / (900 - 10)), 0, 16)));
+    assert(immediate[2].words.w1 == FR_NEG_FRUSTRATIO_2);
+    assert(immediate[5].words.w1 == FR_POS_FRUSTRATIO_2);
 #ifdef PC_NATIVE_64
     assert(sizeof(Gfx) == 16);
     assert(sizeof(Gtexrect2) == 3 * sizeof(Gfx));
@@ -46,6 +74,8 @@ int main(void) {
     assert(list[1].words.native_address == (uintptr_t)texture);
     assert(list[2].words.native_address == (uintptr_t)child);
     assert(list[3].words.native_address == (uintptr_t)SEGMENT_ADDR(8, 32));
+    assert(immediate[6].words.w1 == PC_GBI_STATIC_ADDRESS);
+    assert(immediate[6].words.native_address == (uintptr_t)texture);
 #else
     assert(sizeof(Gfx) == 8);
 #endif

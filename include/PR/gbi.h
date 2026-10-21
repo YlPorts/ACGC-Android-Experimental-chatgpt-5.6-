@@ -1471,7 +1471,7 @@ typedef struct {
 
 typedef union {
     Hilite_t	h;
-    long int	force_structure_alignment[4];
+    s32		force_structure_alignment[4];
 } Hilite;
 
 #define gdSPDefLights0(ar,ag,ab)					\
@@ -1736,7 +1736,7 @@ typedef struct {
 		unsigned int	prim_min_level:8;
 		unsigned int	pad:8;
 		int		cmd:8;
-		unsigned long	color;
+		u32		color; /* second command word, including on LP64 hosts */
 } Gsetcolor;
 #else
 typedef struct {
@@ -1744,8 +1744,14 @@ typedef struct {
 		unsigned char	pad;
 		unsigned char	prim_min_level;
 		unsigned char	prim_level;
-		unsigned long	color;
+		u32		color;
 } Gsetcolor;
+#endif
+
+#ifdef TARGET_PC
+_GBI_STATIC_ASSERT(sizeof(Gsetcolor) == 8, "GBI color payload must remain two words");
+_GBI_STATIC_ASSERT(offsetof(Gsetcolor, color) == 4, "GBI color belongs to w1, not native relocation metadata");
+_GBI_STATIC_ASSERT(sizeof(Hilite) == 16, "GBI highlight data must remain four words");
 #endif
 
 #ifdef TARGET_PC
@@ -2130,6 +2136,17 @@ typedef union {
 	gDma1p((pkt), G_MOVEWORD, data, offset, index)
 #define gsMoveWd(    index, offset, data)				\
 	gsDma1p(      G_MOVEWORD, data, offset, index)
+#ifdef PC_NATIVE_64
+/* MOVEWORD shares the DMA opcode helper, but only SEGMENT carries an
+ * address. Light counts/colors, fog and clip values are immediate words. */
+#undef gsMoveWd
+#define gsMoveWd(index, offset, data) \
+{{ \
+    _SHIFTL(G_MOVEWORD, 24, 8) | _SHIFTL((index), 16, 8) | _SHIFTL((offset), 0, 16), \
+    (unsigned int)((index) == G_MW_SEGMENT ? PC_GBI_STATIC_ADDRESS : (uintptr_t)(data)), \
+    (index) == G_MW_SEGMENT ? (uintptr_t)(data) : 0 \
+}}
+#endif
 #else	/* F3DEX_GBI_2 */
 #define gMoveWd(pkt, index, offset, data)				\
 	gImmp21((pkt), G_MOVEWORD, offset, index, data)

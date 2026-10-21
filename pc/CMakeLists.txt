@@ -310,6 +310,7 @@ set(PC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_language_graphics.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_android_bridge.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_profiler.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_diagnostics.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_pause_menu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_settings_menu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_menu_util.c

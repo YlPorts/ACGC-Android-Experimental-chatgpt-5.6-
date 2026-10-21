@@ -1,5 +1,6 @@
 /* pc_main.c - PC entry point: SDL2/GL init and boot sequence */
 #include "pc_platform.h"
+#include "pc_diagnostics.h"
 #ifndef _WIN32
 #include <link.h>
 #endif
@@ -155,6 +156,7 @@ void pc_platform_init(void) {
     }
 #endif
 
+    pc_diagnostics_log("GL vendor=%s renderer=%s version=%s", glGetString(GL_VENDOR), glGetString(GL_RENDERER), glGetString(GL_VERSION));
     pc_gx_init();
     pc_texture_pack_init();
 #ifdef PC_ENHANCEMENTS
@@ -193,6 +195,7 @@ void pc_platform_shutdown(void) {
         g_pc_window = NULL;
     }
     SDL_Quit();
+    pc_diagnostics_end();
 }
 
 void pc_platform_update_window_size(void) {
@@ -325,6 +328,9 @@ int main(int argc, char* argv[]) {
     }
 #endif
 
+#ifdef TARGET_ANDROID
+    pc_diagnostics_begin();
+#endif
     pc_write_startup_stage("native-entry");
 
     for (int i = 1; i < argc; i++) {

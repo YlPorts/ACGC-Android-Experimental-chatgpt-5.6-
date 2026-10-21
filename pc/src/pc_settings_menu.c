@@ -48,6 +48,7 @@ enum {
     ITEM_ANDROID_CHANGE_FOLDER,
     ITEM_ANDROID_RESTART,
     ITEM_ANDROID_EXIT,
+    ITEM_ANDROID_DIAGNOSTICS,
 };
 
 /* Per-item static metadata. restart=1 appends " *" and folds into the
@@ -101,6 +102,7 @@ static const Item tab_system_items[] = {
     { "Cambiar carpeta",   ITEM_ANDROID_CHANGE_FOLDER, 0 },
     { "Reiniciar juego",   ITEM_ANDROID_RESTART,       0 },
     { "Cerrar app",        ITEM_ANDROID_EXIT,          0 },
+    { "Copiar diagnostico",ITEM_ANDROID_DIAGNOSTICS,   0 },
 };
 #else
 static const Item tab_video_items[] = {
@@ -187,6 +189,7 @@ static const char* localized_item_label(int id, const char* fallback) {
         case ITEM_ANDROID_CHANGE_FOLDER: return pc_language_ui_lookup("settings.change_folder", "Change folder");
         case ITEM_ANDROID_RESTART: return pc_language_ui_lookup("settings.restart_game", "Restart game");
         case ITEM_ANDROID_EXIT: return pc_language_ui_lookup("settings.close_app", "Close app");
+        case ITEM_ANDROID_DIAGNOSTICS: return pc_language_ui_lookup("settings.copy_diagnostics", "Copiar diagnostico");
         default: return fallback;
     }
 }
@@ -549,6 +552,7 @@ static void item_cycle(int id, int dir) {
         case ITEM_ANDROID_CHANGE_FOLDER:
         case ITEM_ANDROID_RESTART:
         case ITEM_ANDROID_EXIT:
+        case ITEM_ANDROID_DIAGNOSTICS:
             break;
         case ITEM_BINDINGS:
             /* opened via confirm, left/right does nothing */
@@ -658,6 +662,7 @@ static void item_format(int id, char* buf, size_t n) {
         case ITEM_ANDROID_CHANGE_FOLDER:
         case ITEM_ANDROID_RESTART:
         case ITEM_ANDROID_EXIT:
+        case ITEM_ANDROID_DIAGNOSTICS:
             snprintf(buf, n, "Ejecutar");
             break;
         case ITEM_BINDINGS:
@@ -703,6 +708,7 @@ static int item_changed(int id) {
         case ITEM_ANDROID_CHANGE_FOLDER:
         case ITEM_ANDROID_RESTART:
         case ITEM_ANDROID_EXIT:
+        case ITEM_ANDROID_DIAGNOSTICS:
         case ITEM_BINDINGS:      return 0; /* actions/bindings save themselves */
     }
     return 0;
@@ -808,7 +814,7 @@ static int item_is_android_action(int id) {
     return id == ITEM_TOUCH_EDIT || id == ITEM_TOUCH_RESET ||
            id == ITEM_ANDROID_SYNC || id == ITEM_ANDROID_RELOAD ||
            id == ITEM_ANDROID_CHANGE_FOLDER || id == ITEM_ANDROID_RESTART ||
-           id == ITEM_ANDROID_EXIT;
+           id == ITEM_ANDROID_EXIT || id == ITEM_ANDROID_DIAGNOSTICS;
 }
 
 static void activate_android_action(int id) {
@@ -836,6 +842,9 @@ static void activate_android_action(int id) {
             break;
         case ITEM_ANDROID_EXIT:
             pc_android_request_action(PC_ANDROID_ACTION_CLOSE_APP);
+            break;
+        case ITEM_ANDROID_DIAGNOSTICS:
+            pc_android_request_action(PC_ANDROID_ACTION_COPY_DIAGNOSTICS);
             break;
     }
 }

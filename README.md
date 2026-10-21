@@ -4,7 +4,7 @@ A native PC port of Animal Crossing (GameCube) built on top of the [ac-decomp](h
 
 The game's original C code runs natively, with a custom translation layer replacing the GameCube's GX graphics API with OpenGL 3.3 on desktop and OpenGL ES 3.0 on Android.
 
-The `android-v6-arm64` branch contains the **V6.0 RC1 development candidate** for native ARM64 and ARM32, based on PC 0.9.3 / Android V5. See the [technical report](docs/V6_ARM64_REPORT_ES.md) and [pending device tests](docs/V6_DEVICE_TESTS_ES.md). Android gameplay has not been verified; this is not a stable release. The new authorized V6 signing certificate cannot directly update V5 installations signed with another key.
+The `android-v6-arm64` branch contains the **V6.0 RC5 development candidate** for native ARM64 and ARM32, based on PC 0.9.3 / Android V5. See the [technical report](docs/V6_ARM64_REPORT_ES.md) and [pending device tests](docs/V6_DEVICE_TESTS_ES.md). Android gameplay has not been verified; this is not a stable release. The new authorized V6 signing certificate cannot directly update V5 installations signed with another key.
 
 This repository does not contain any game assets or assembly whatsoever. An existing copy of the game is required.
 

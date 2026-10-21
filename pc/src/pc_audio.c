@@ -10,6 +10,7 @@
  */
 #include "pc_platform.h"
 #include "pc_settings.h"
+#include "pc_diagnostics.h"
 #include "jaudio_NES/audiothread.h"
 
 #define PC_AUDIO_SAMPLE_RATE 32000
@@ -56,6 +57,7 @@ void pc_audio_start_producer_thread(void) {
         printf("[AUDIO] Producer thread started\n");
     } else {
         printf("[AUDIO] Failed to create producer thread: %s\n", SDL_GetError());
+        pc_diagnostics_log("Audio producer failed: %s", SDL_GetError());
     }
 }
 
@@ -107,10 +109,12 @@ void AIInit(u8* stack) {
 
     audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (audio_device != 0) {
+        pc_diagnostics_log("Audio SDL: rate=%d format=0x%x channels=%u samples=%u", have.freq, have.format, have.channels, have.samples);
         printf("[AUDIO] Opened: freq=%d fmt=0x%04X ch=%d samples=%d (requested: freq=%d)\n",
                have.freq, have.format, have.channels, have.samples, want.freq);
     } else {
         printf("[AUDIO] Failed to open: %s\n", SDL_GetError());
+        pc_diagnostics_log("Audio SDL open failed: %s", SDL_GetError());
     }
 }
 
@@ -142,6 +146,16 @@ void AIInitDMA(uintptr_t addr, u32 size) {
 
     SDL_MemoryBarrierRelease();
     SDL_AtomicSet(&ring_write_pos, (int)(wp + n_samples));
+    /* One bounded diagnostic sample per 120 mixed buffers, off the SDL callback. */
+    static unsigned diagnostic_frame;
+    if ((diagnostic_frame++ % 120) == 0) {
+        int peak = 0;
+        for (u32 i = 0; i < n_samples; ++i) {
+            int value = src[i]; if (value < 0) value = -value;
+            if (value > peak) peak = value;
+        }
+        pc_diagnostics_log("Mixed audio: frame=%u samples=%u peak=%d volume=%d ring=%u", diagnostic_frame, n_samples, peak, vol, used);
+    }
 }
 
 void AIStartDMA(void) {

@@ -1,5 +1,6 @@
 #include "pc_gx_internal.h"
 #include "pc_shader_seed.h"
+#include "pc_diagnostics.h"
 
 int g_pc_uber_shader_only = 0; /* --uber-shader: disable specialization */
 
@@ -78,6 +79,7 @@ static GLuint compile_shader(GLenum type, const char* source) {
         char log[512];
         glGetShaderInfoLog(shader, sizeof(log), NULL, log);
         fprintf(stderr, "WARNING: Shader compile error: %s\n", log);
+        pc_diagnostics_log("Shader compile FAILED: %s", log);
         glDeleteShader(shader);
         return 0;
     }
@@ -108,6 +110,7 @@ static GLuint link_program(GLuint vert, GLuint frag) {
         char log[512];
         glGetProgramInfoLog(prog, sizeof(log), NULL, log);
         fprintf(stderr, "WARNING: Program link error: %s\n", log);
+        pc_diagnostics_log("Shader link FAILED: %s", log);
         glDeleteProgram(prog);
         prog = 0;
     }

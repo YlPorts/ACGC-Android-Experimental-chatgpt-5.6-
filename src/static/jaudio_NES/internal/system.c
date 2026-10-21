@@ -1,4 +1,5 @@
 #ifdef PC_NATIVE_64
+#include "pc_diagnostics.h"
 #include "pc_audio_bank.h"
 static PcAudioBank* pc_native_banks[256];
 static u8 pc_native_bank_valid[256];
@@ -805,16 +806,25 @@ static s32 __Nas_StartSeq(s32 group_idx, s32 seq_id, s32 param) {
     s32 i;
     s32 idx;
 
+#ifdef PC_NATIVE_64
+    pc_diagnostics_log("Sequence start: group=%d seq=%d", group_idx, seq_id);
+#endif
     Nas_ReleaseGroup(group);
     bank_id = 0xFF;
     idx = AG.map_header[seq_id];
     for (i = Nas_MapHeaderReadByte(idx++); i > 0; i--) {
         bank_id = Nas_MapHeaderReadByte(idx++);
-        __Load_Ctrl(bank_id);
+        void* loaded_bank = __Load_Ctrl(bank_id);
+#ifdef PC_NATIVE_64
+        pc_diagnostics_log("Sequence bank: seq=%d bank=%d loaded=%d", seq_id, bank_id, loaded_bank != NULL);
+#endif
     }
 
     seq_p = __Load_Seq(seq_id);
     if (seq_p == NULL) {
+#ifdef PC_NATIVE_64
+        pc_diagnostics_log("Sequence load FAILED: seq=%d", seq_id);
+#endif
         return 0;
     }
 
@@ -2217,8 +2227,14 @@ s32 Nas_BankOfsToAddr(s32 bank_id, u8* ctrl_p, WaveMedia* wave_media, s32 async)
                                                   &AG.voice_info[bank_id], wave_media, wave_sizes[0], wave_sizes[1]);
     if (!native_bank) {
         OSReport("[Audio] Invalid bank offsets/layout for bank %d\n", bank_id);
+        pc_diagnostics_log("NEOS bank decode FAILED: id=%d bytes=%u instruments=%u drums=%u sfx=%u wave0=%zu wave1=%zu", bank_id,
+            AG.bank_header->entries[bank_id].size, AG.voice_info[bank_id].num_instruments, AG.voice_info[bank_id].num_drums,
+            AG.voice_info[bank_id].num_sfx, wave_sizes[0], wave_sizes[1]);
         return -1;
     }
+    pc_diagnostics_log("NEOS bank decoded: id=%d bytes=%u instruments=%u drums=%u sfx=%u", bank_id,
+        AG.bank_header->entries[bank_id].size, AG.voice_info[bank_id].num_instruments,
+        AG.voice_info[bank_id].num_drums, AG.voice_info[bank_id].num_sfx);
     pc_audio_bank_free(pc_native_banks[bank_id]);
     pc_native_banks[bank_id] = native_bank;
     pc_native_bank_valid[bank_id] = 1;

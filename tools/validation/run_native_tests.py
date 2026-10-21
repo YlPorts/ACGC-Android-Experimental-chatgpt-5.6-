@@ -63,6 +63,12 @@ def main():
         "language": (["pc/src/pc_language.c", "src/static/jaudio_NES/game/audioheaders.c",
                       "src/data/item/item_name.c"], [], []),
         "audio_bank": (["pc/src/pc_audio_bank.c"], [], []),
+        "audio_synthesis": ([audio + name + ".c" for name in
+                             ("driver", "rspsim", "sample", "rate", "audiowork", "audioconst", "system", "os", "audiotable")]
+                            + ["pc/src/" + name + ".c" for name in ("pc_address", "pc_aram", "pc_audio_bank", "pc_diagnostics")],
+                            ["-lm", "-pthread", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections", "-Dnullptr=NULL"],
+                            [out / "synthesis.pcm"]),
+        "diagnostics": (["pc/src/pc_diagnostics.c"], ["-pthread"], []),
         "bx": (["pc/src/pc_bx.c"], [], [out / "NIN_BANK.bin", out / "NIN_WAVE.bin"]),
         "guest_memory": (["pc/src/pc_guest_memory.c"], [], []),
         "audio_commands": ([audio + name + ".c" for name in ("cmdstack", "rspsim", "sample", "rate")]

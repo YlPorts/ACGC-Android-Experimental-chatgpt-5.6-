@@ -7,14 +7,13 @@
 static GLushort quad_index_buf[(PC_GX_MAX_VERTS / 4) * 6];
 #include <math.h>
 #include <dolphin/gx/GXEnum.h>
+#include <dolphin/gx/GXStruct.h>
 
 /* Can't include GXTev.h — it uses enum types while we use u32 */
 void GXSetTevColorIn(u32 stage, u32 a, u32 b, u32 c, u32 d);
 void GXSetTevAlphaIn(u32 stage, u32 a, u32 b, u32 c, u32 d);
 void GXSetTevColorOp(u32 stage, u32 op, u32 bias, u32 scale, GXBool clamp, u32 out_reg);
 void GXSetTevAlphaOp(u32 stage, u32 op, u32 bias, u32 scale, GXBool clamp, u32 out_reg);
-
-typedef struct { u8 r, g, b, a; } GXColor;
 
 #ifndef TARGET_ANDROID
 #undef glUniform1i
@@ -1642,10 +1641,10 @@ void GXSetTevColor(u32 id, u32 color_packed) {
     }
 }
 
-void GXSetTevColorS10(u32 id, s16 r, s16 g, s16 b, s16 a) {
+void GXSetTevColorS10(u32 id, GXColorS10 color) {
     pc_gx_flush_if_begin_complete();
     if (id < GX_MAX_TEVREG) {
-        float c[4] = { r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f };
+        float c[4] = { color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f };
         if (memcmp(g_gx.tev_colors[id], c, sizeof(c)) == 0) return;
         DIRTY(PC_GX_DIRTY_TEV_COLORS);
         memcpy(g_gx.tev_colors[id], c, sizeof(c));

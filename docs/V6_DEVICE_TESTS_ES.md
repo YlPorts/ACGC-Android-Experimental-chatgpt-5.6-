@@ -16,8 +16,7 @@ RC2 se cierran al iniciar. El informe real de RC3 en Galaxy A15/Android 16
 confirma `SIGSEGV` al usar un heap del sistema nulo. Su Build ID coincide con los
 símbolos exactos de CI. RC4 corrige el cálculo de capacidad que hacía fallar su
 creación en ARM64; se ha reproducido con las clases JKR y el OS reales y pasa
-la prueba de arranque de heaps en ambas ABI. Aún falta confirmar el arranque y
-la partida de RC4 en el dispositivo. No considerar ARM64/universal aprobadas.
+la prueba de arranque de heaps en ambas ABI. El usuario confirma después que RC4 ARM64 carga, pero muestra modelos negros y menús ilegibles y falta la música. RC4 ARM32 no se ha probado. RC5 corrige el layout de colores que reproduce el negro con GLES; verificar la imagen en el teléfono. La música real sigue pendiente. No considerar ARM64/universal aprobadas.
 
 Al abrir la app después de un cierre, Android 11+ puede mostrar «El juego se
 cerró en el intento anterior». Elegir **Copiar informe** y pegar el texto para
@@ -26,9 +25,9 @@ Esta ruta ha proporcionado el informe RC3 del usuario; otros Android/dispositivo
 siguen pendientes. No se necesita un PC ni borrar datos. Una traza descartada
 por Android no puede recuperarse; en ese caso obtener `adb logcat -b crash -d`.
 
-Para actualizar RC1/RC2/RC3 a RC4, instalar la APK sobre la anterior sin
+Para actualizar RC1/RC2/RC3/RC4 a RC5, instalar la APK sobre la anterior sin
 desinstalar, borrar datos ni cambiar la carpeta del juego. Todas usan el mismo
-certificado V6; RC4 tiene `versionCode=9`. Comprobarlo con
+certificado V6; RC5 tiene `versionCode=10`. Comprobarlo con
 `apksigner verify --print-certs` y `aapt dump badging` antes de la prueba. Un
 error de certificado no se resuelve borrando el pueblo. Si persiste un cierre,
 conservar `adb logcat -b crash -d`, `adb logcat -d` y `save/startup-stage.txt`
