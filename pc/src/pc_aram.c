@@ -77,14 +77,18 @@ BOOL ARCheckInit(void) { return aram_base != NULL; }
 void ARQInit(void) {}
 void ARQPostRequest(ARQRequest* req, u32 owner, u32 type, u32 prio,
                     uintptr_t source, uintptr_t dest, u32 length, ARQCallback callback) {
-    req->next = NULL;
-    req->owner = owner;
-    req->type = type;
-    req->priority = prio;
-    req->source = source;
-    req->dest = dest;
-    req->length = length;
-    req->callback = callback;
+    /* The synchronous DVD audio loader deliberately has no request object.
+     * A real request still carries its metadata into the completion callback. */
+    if (req != NULL) {
+        req->next = NULL;
+        req->owner = owner;
+        req->type = type;
+        req->priority = prio;
+        req->source = source;
+        req->dest = dest;
+        req->length = length;
+        req->callback = callback;
+    }
     if (type == 0) {
         ARStartDMA(type, source, dest, length); /* source=mram, dest=aram */
     } else {

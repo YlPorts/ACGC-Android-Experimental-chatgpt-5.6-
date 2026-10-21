@@ -141,9 +141,10 @@ static void __DoFinish(DVDCall* call, u32 arg) {
     }
 }
 
-static void __DVDT_CheckBack(void* cb) {
+static s32 __DVDT_CheckBack(void* cb) {
     DVDCall* callback = (DVDCall*)cb;
     __DoFinish(callback, callback->owner);
+    return 0;
 }
 
 extern s32 DVDT_LoadtoARAM_Main(void* arg) {
@@ -640,7 +641,8 @@ extern s32 DVDT_CheckPass(u32 owner, u32* status, Jac_DVDCallback callback) {
     call.callbackStatus = status;
     call.callback = callback;
 
-    return DVDT_AddTask((TaskCallback)__DVDT_CheckBack, cb, 0x58);
+    /* This is an in-process task, including native pointers, not disc data. */
+    return DVDT_AddTask((TaskCallback)__DVDT_CheckBack, cb, sizeof(call));
 }
 
 extern s32 Jac_CheckFile(char* file) {

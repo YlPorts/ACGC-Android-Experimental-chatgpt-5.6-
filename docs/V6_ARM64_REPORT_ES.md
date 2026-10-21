@@ -1,4 +1,4 @@
-# Animal Crossing Android V6.0 RC1 — estado técnico
+# Animal Crossing Android V6.0 RC2 — estado técnico
 
 Esta rama contiene una implementación nativa ARM64 y conserva la compilación
 ARM32 sobre V5 / PC 0.9.3. Es una **candidata de desarrollo**, no una versión
@@ -7,6 +7,33 @@ estable ni una afirmación de que se haya jugado en Android.
 Base: `d717e971bb684a36549ac9b2d7d3879a3a296fc5` de `master`.
 SDL2: 2.30.11, submódulo `fa24d868ac2f8fd558e4e914c9863411245db8fd`.
 La inspección anterior a las modificaciones está en [la auditoría inicial](V6_ARM64_AUDIT_ES.md).
+
+## Corrección del cierre al iniciar en RC1
+
+El usuario confirmó que RC1 se cierra al iniciar el juego en los tres productos.
+Se ha retirado esa candidata y se ha reproducido una regresión común a ambas ABI:
+`pc_neos_init_sync()` carga `/audiorom.img` mediante `DVDT_LoadtoARAM_Main()`,
+que llama a `ARQPostRequest()` sin un objeto de solicitud. RC1 escribía los campos
+de ese objeto nulo antes de copiar el audio. UBSan identifica la escritura nula
+en `pc/src/pc_aram.c`, con la cola DVD original en la traza.
+
+RC2 sólo rellena esos campos cuando existe una solicitud y sigue ejecutando la
+transferencia completa y su callback. No desactiva el audio ni SafeBoot. También
+corrige `DVDT_CheckPass()`: una tarea de proceso copiaba 88 bytes fijos y perdía
+sus punteros finales en ARM64; ahora copia `sizeof(DVDCall)`. En ARM32 ese tamaño
+sigue siendo 88 bytes. El callback PC usa además la firma correcta de la cola.
+
+La nueva prueba `dvd_audio` compila la cola DVD, el cargador de audio, la copia
+de tareas, ARQ y DMA **de producción**. Sólo sustituye el backend del disco por
+bytes sintéticos, sin incluir archivos del juego. Verifica una carga con dos
+bloques y cola diferida, la cola final alineada a 32 bytes, ambas direcciones
+MRAM/ARAM, estados/callbacks, la barrera de finalización y archivo ausente.
+Antes de la corrección falla en la escritura nula; después comprueba los bytes
+transferidos. Esto no equivale a haber arrancado una partida Android.
+
+La candidata usa `versionCode=7`, `versionName=6.0-rc2-pc0.9.3` y el mismo
+certificado V6. Puede reemplazar RC1 firmada con ese certificado sin desinstalar
+ni borrar datos. Las etiquetas RC1 permanecen inmutables para diagnóstico.
 
 ## Cambios del motor
 
@@ -31,8 +58,9 @@ La inspección anterior a las modificaciones está en [la auditoría inicial](V6
 - JSystem usa aritmética de direcciones nativa. En ARM64, los bloques y la granularidad de asignación del heap usan 16 bytes;
   ARM32 conserva sus encabezados y granularidad originales de cuatro bytes. Las entradas RARC conservan exactamente 20 bytes y su
   campo reservado de cuatro bytes, incluso dentro del proceso de 64 bits.
-- ARQ transporta MRAM sin truncamiento, conserva offsets ARAM y completa los
-  campos de la solicitud antes de invocar su callback.
+- ARQ transporta MRAM sin truncamiento, conserva offsets ARAM, admite las
+  transferencias síncronas sin solicitud del cargador original y completa los
+  campos de las solicitudes existentes antes de invocar su callback.
 - Los bancos de audio NEOS y los recursos IBNK/WSYS se decodifican desde bytes BE
   inmutables a objetos nativos. Se conservan referencias compartidas y se validan
   offsets, límites de muestras, bucles y la capacidad real de los libros ADPCM.
@@ -85,11 +113,11 @@ instalar; no se afirma que se carguen directamente desde el ZIP.
 | Paquete completo | Verificado | Todas las `.so`, ABI, dependencias, JNI, firma y zipalign |
 | Layout persistente V5 | 98/98 en ambas ABI | Comparación con baseline ARM32 intacta |
 | Serializador de partidas | Ida/vuelta cruzada ARM32 ↔ AArch64 | Payload válido sintético de 148128 bytes |
-| Pruebas de componentes | 13 casos en host/ARM32/AArch64 | ASan/UBSan en host; ejecutables ARM bajo QEMU |
+| Pruebas de componentes | 14 casos en host/ARM32/AArch64 | ASan/UBSan en host; ejecutables ARM bajo QEMU |
 | Workflow | actionlint correcto | Además de compilación/configuración Gradle local |
 
-Los trece casos cubren referencias concurrentes con direcciones superiores a 4 GB,
-GBI estático/dinámico/binario, ARAM y callbacks, comandos de escenas, Multi5 y
+Los catorce casos cubren referencias concurrentes con direcciones superiores a 4 GB,
+GBI estático/dinámico/binario, ARAM y callbacks, la ruta DVD de carga del audio de arranque, comandos de escenas, Multi5 y
 SafeBoot con packs sintéticos, bancos NEOS, IBNK/WSYS originales incluidos en el
 código, traducción de direcciones DOL, colas y copia DSP, NES, serializador y
 entradas RARC y asignación/redimensionado/liberación real del heap con tamaños y alineaciones variados. La prueba NES ejecuta el **wrapper de producción**

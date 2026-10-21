@@ -53,6 +53,8 @@ def main():
         "address": (["pc/src/pc_address.c"], ["-pthread"], []),
         "gbi": (["pc/src/pc_gbi_runtime.c", "pc/src/pc_address.c"], [], []),
         "aram": (["pc/src/pc_aram.c"], [], []),
+        "dvd_audio": ([audio + "dvdthread.c", audio + "sample.c", "pc/src/pc_aram.c", "pc/src/pc_address.c"],
+                      ["-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections"], []),
         "scene": ([], [], []),
         "language": (["pc/src/pc_language.c", "src/static/jaudio_NES/game/audioheaders.c",
                       "src/data/item/item_name.c"], [], []),

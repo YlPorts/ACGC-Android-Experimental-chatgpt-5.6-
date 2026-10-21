@@ -195,7 +195,10 @@ def main():
         assert digest == expected, "signature differs from the supplied previous APK"
     badging = output([sdk_tools / "aapt", "dump", "badging", args.apk])
     assert "package: name='com.acgc.port'" in badging, "application ID changed"
-    assert "versionCode='6'" in badging and "sdkVersion:'23'" in badging, "unexpected version/minSdk"
+    assert "versionCode='7'" in badging and "versionName='6.0-rc2-pc0.9.3'" in badging, "unexpected candidate version"
+    assert "sdkVersion:'23'" in badging, "unexpected minSdk"
+    report["version_code"] = 7
+    report["version_name"] = "6.0-rc2-pc0.9.3"
     report["verified"] = True
     report["jni_methods_verified"] = len(methods)
     if args.output:

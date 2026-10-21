@@ -5,6 +5,21 @@ obtenidos. Registrar APK, SHA-256, certificado, ABI de proceso, dispositivo, ver
 Android, GPU, versión de cada pack y logs. Objetivo principal: Galaxy A15 SM-A155M,
 Android 16/Mali; repetir los casos básicos en otro dispositivo y en ARM32.
 
+**Regresión conocida de RC1:** el usuario notificó cierre al iniciar el juego en
+las tres APK. RC1 está retirada. RC2 corrige la escritura sobre una solicitud
+ARAM nula y la copia parcial de una tarea DVD en ARM64. La nueva prueba de esta
+ruta usa fuentes de producción con disco sintético; la prueba de arranque en
+el teléfono con RC2 sigue pendiente y debe registrarse expresamente.
+
+Para actualizar RC1 a RC2, instalar la APK sobre la anterior sin desinstalar,
+borrar datos ni cambiar la carpeta de juego. Ambas usan el mismo certificado
+V6; RC2 tiene `versionCode=7`. Comprobarlo con `apksigner verify --print-certs`
+y `aapt dump badging` antes de la prueba. Un error de certificado no se resuelve
+borrando el pueblo. Si persiste un cierre, conservar `adb logcat -b crash -d`,
+`adb logcat -d` y `save/startup-stage.txt` del almacenamiento privado. Estas APK
+son depurables: se puede extraer esa etapa con
+`adb exec-out run-as com.acgc.port cat files/save/startup-stage.txt`.
+
 1. Conservar y verificar una copia de la carpeta de juego y del pueblo V4/V5.
    Comparar certificados: usar `adb install -r <apk>` sólo si coinciden. Las
    candidatas V6 de esta sesión tienen una firma nueva autorizada por el
