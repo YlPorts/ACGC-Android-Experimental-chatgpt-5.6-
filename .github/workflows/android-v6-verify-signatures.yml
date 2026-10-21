@@ -47,6 +47,8 @@ jobs:
           assert run_id.isdecimal() and re.fullmatch(r'v6\.0-rc[0-9]+', tag)
           run = gh('api', f'repos/{repo}/actions/runs/{run_id}')
           assert run['status'] == 'completed' and run['conclusion'] == 'success'
+          # PR checkout may be a merge ref, rather than this exact head commit.
+          assert run['event'] in ('push', 'workflow_dispatch')
           assert run['head_repository']['full_name'] == repo
           assert run['head_branch'] == 'android-v6-arm64'
           assert run['path'] == '.github/workflows/android-v6.yml'
