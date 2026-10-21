@@ -11,7 +11,7 @@ struct jaheap_ {
 	u8 memoryType;             // _01, 0 = ARAM, 1 = DRAM
 	u16 childCount;            // _02
 	u32 heapId;                // _04
-	u32 startAddress;          // _08
+	uintptr_t startAddress;          // _08
 	u32 usedSize;              // _0C
 	u32 size;                  // _10
 	jaheap_* firstChild;       // _14
@@ -29,11 +29,11 @@ extern "C" {
 void Jac_GetUnlockHeap(jaheap_*);
 void Jac_CheckAlloc(jaheap_*);
 void Jac_InitHeap(jaheap_*);
-void Jac_SelfInitHeap(jaheap_*, u32, u32, u32);
-BOOL Jac_SelfAllocHeap(jaheap_*, jaheap_*, u32, u32);
+void Jac_SelfInitHeap(jaheap_*, uintptr_t, u32, u32);
+BOOL Jac_SelfAllocHeap(jaheap_*, jaheap_*, u32, uintptr_t);
 BOOL Jac_SetGroupHeap(jaheap_*, jaheap_*);
 void Jac_CutdownHeap(jaheap_*);
-void Jac_InitMotherHeap(jaheap_*, u32, u32, u8);
+void Jac_InitMotherHeap(jaheap_*, uintptr_t, u32, u8);
 BOOL Jac_AllocHeap(jaheap_*, jaheap_*, u32);
 BOOL Jac_DeleteHeap(jaheap_*);
 void Jac_GarbageCollection_St(jaheap_*);

@@ -62,7 +62,7 @@ static void Player_actor_CorrectSomething_Pull_net(ACTOR* actor) {
         u32 label = player->item_net_catch_label;
 
         if (label != 0 && player->item_net_catch_type == 0) {
-            ((ACTOR*)label)->drawn = TRUE;
+            (PC_REF_PTR(ACTOR*, label))->drawn = TRUE;
         }
         pos = &player->left_hand_pos;
 
@@ -140,8 +140,8 @@ static void Player_actor_Pull_net_demo_ct(ACTOR* actor) {
                         item = ITM_INSECT38;
                     }
                 } else {
-                    mIN_copy_name_str(str, ((aINS_INSECT_ACTOR*)label)->item);
-                    item = ((aINS_INSECT_ACTOR*)label)->item;
+                    mIN_copy_name_str(str, (PC_REF_PTR(aINS_INSECT_ACTOR*, label))->item);
+                    item = (PC_REF_PTR(aINS_INSECT_ACTOR*, label))->item;
                 }
                 mMsg_Set_item_str_art(win, mMsg_ITEM_STR0, str, sizeof(str), mIN_get_item_article(item));
                 msg_no = 0xA4E;

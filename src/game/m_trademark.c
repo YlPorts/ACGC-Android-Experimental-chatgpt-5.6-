@@ -1,3 +1,4 @@
+#include "dolphin/os.h"
 #include "m_trademark.h"
 
 #include "m_scene_table.h"

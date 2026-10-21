@@ -1,3 +1,6 @@
+#ifdef TARGET_PC
+#include "pc_address.h"
+#endif
 #include "libforest/emu64/emu64.hpp"
 #include "libforest/emu64.h"
 
@@ -403,7 +406,7 @@ static u32 texture_cache_get_heap_size(texture_cache_t* cache) {
 
 static void* texture_cache_alloc(texture_cache_t* cache, u32 size) {
     cache->last_alloc_start = cache->buffer_current;
-    cache->last_alloc_end = (u8*)ALIGN_NEXT((u32)cache->buffer_current + size, 32);
+    cache->last_alloc_end = (u8*)ALIGN_NEXT((uintptr_t)cache->buffer_current + size, 32);
 
     if (cache->buffer_pos < cache->last_alloc_end - cache->buffer_start) {
         cache->buffer_pos = cache->last_alloc_end - cache->buffer_start;
@@ -3366,13 +3369,13 @@ void emu64::dirty_check(int tile, int n_tiles, int do_texture_matrix) {
                     img_addr = tex_info_p->img_addr;
 
                     dol_fmt.raw = cvtN64ToDol(tex_info_p->format, tex_info_p->size);
-                    if (((u32)img_addr & 0x1F) != 0) {
+                    if (((uintptr_t)img_addr & 0x1F) != 0) {
 #ifndef TARGET_PC
                         /* Translation: Texture (%08x) alignment isn't 32 bytes */
                         this->Printf0("テクスチャ(%08x)のアライメントが３２バイトになっていません\n", img_addr);
                         /* GC hardware DMA requires 32-byte alignment; truncate.
                          * On PC we decode in software so the raw address is correct. */
-                        img_addr = (void*)((u32)img_addr & ~0x1F);
+                        img_addr = (void*)((uintptr_t)img_addr & ~0x1F);
 #endif
                     }
 
@@ -3483,16 +3486,16 @@ void emu64::dl_G_DL(void) {
             }
 
             if (this->DL_stack_level < DL_MAX_STACK_LEVEL) {
-                this->DL_stack[this->DL_stack_level++] = (u32)(this->gfx_p + 1);
+                this->DL_stack[this->DL_stack_level++] = (uintptr_t)(this->gfx_p + 1);
             } else {
                 this->err_count++;
                 this->Printf0("*** DL stack overflow ***\n");
             }
 
-            this->gfx_p = (Gfx*)((int)this->work_ptr - sizeof(Gfx));
+            this->gfx_p = ((Gfx*)this->work_ptr - 1);
             break;
         case G_DL_NOPUSH:
-            this->gfx_p = (Gfx*)((u32)this->work_ptr - sizeof(Gfx));
+            this->gfx_p = ((Gfx*)this->work_ptr - 1);
             break;
         default:
             if (this->disable_polygons == false) {
@@ -3503,7 +3506,11 @@ void emu64::dl_G_DL(void) {
 }
 
 void emu64::dl_G_RDPHALF_1(void) {
+    #ifdef PC_NATIVE_64
+    this->rdpHalf_1 = this->seg2k0(this->gfx.words.w1);
+#else
     this->rdpHalf_1 = this->gfx.words.w1;
+#endif
 }
 
 void emu64::dl_G_TEXRECT() {
@@ -3675,7 +3682,7 @@ void emu64::dl_G_SETTILE_DOLPHIN() {
     this->settilesize_dolphin_cmds[tile].isDolphin = 1;
 
     /* Set texture info for use in GC texture object initialization */
-    this->texture_info[tile].img_addr = (void*)this->now_setimg.setimg2.imgaddr;
+    this->texture_info[tile].img_addr = (void*)pc_address_unpack(this->now_setimg.setimg2.imgaddr);
     this->texture_info[tile].format = this->now_setimg.setimg2.fmt;
     this->texture_info[tile].size = this->now_setimg.setimg2.siz;
     this->texture_info[tile].width = EXPAND_WIDTH(this->now_setimg.setimg2.wd);
@@ -3700,7 +3707,7 @@ void emu64::dl_G_LOADTILE() {
         return;
 
     /* Determine tmem base address */
-    u32 dram = this->now_setimg.setimg2.imgaddr;
+    uintptr_t dram = pc_address_unpack(this->now_setimg.setimg2.imgaddr);
     dram += ((loadtile.tl / 4) * EXPAND_WIDTH(this->now_setimg.setimg2.wd) + (loadtile.sl / 4)
              << this->now_setimg.setimg2.siz) /
             2;
@@ -3728,7 +3735,7 @@ void emu64::dl_G_LOADTILE() {
 void emu64::dl_G_LOADBLOCK() {
     int tmem_idx;
     Gloadblock* loadblock = (Gloadblock*)this->gfx_p;
-    u32 addr;
+    uintptr_t addr;
     int i;
 
 #ifdef EMU64_DEBUG
@@ -3744,7 +3751,7 @@ void emu64::dl_G_LOADBLOCK() {
         return; /* Does not support LOAD commands */
 
     tmem_idx = this->settile_cmds[loadblock->tile].tmem / 4;
-    addr = this->now_setimg.setimg2.imgaddr;
+    addr = pc_address_unpack(this->now_setimg.setimg2.imgaddr);
     for (i = tmem_idx; i < tmem_idx + (loadblock->sh + 1) / 16; i++) {
         tmem_map[i].addr = (void*)addr;
         tmem_map[i].loadblock = *loadblock;
@@ -3857,7 +3864,7 @@ void emu64::dl_G_LOADTLUT() {
 
                 this->tlut_addresses[tlut_name] = tlut_addr;
                 if (tlut_addr != nullptr) {
-                    if (((u32)tlut_addr & (0x1F)) != 0) {
+                    if (((uintptr_t)tlut_addr & (0x1F)) != 0) {
 #ifndef TARGET_PC
                         /* The alignment of the palette (%08x) is not 32 bytes. */
                         EMU64_PRINTF(
@@ -3866,7 +3873,7 @@ void emu64::dl_G_LOADTLUT() {
 
                         /* GC hardware DMA requires 32-byte alignment; truncate.
                          * On PC we decode in software so the raw address is correct. */
-                        aligned_addr = (void*)((u32)tlut_addr & (~0x1F));
+                        aligned_addr = (void*)((uintptr_t)tlut_addr & (~0x1F));
 #endif
                     }
 
@@ -3891,10 +3898,10 @@ void emu64::dl_G_LOADTLUT() {
         if (this->disable_polygons == false) {
             u16 count = ((loadtlut->words.w1 >> 14) & 0x3FF) + 1;
             void* tlut;
-            u32 addr = this->now_setimg.setimg2.imgaddr;
+            uintptr_t addr = pc_address_unpack(this->now_setimg.setimg2.imgaddr);
             u32 tlut_name = (settile_p->tmem / 16) & 0xF;
 
-            if (addr == (u32)this->tlut_addresses[tlut_name]) {
+            if (addr == (uintptr_t)this->tlut_addresses[tlut_name]) {
                 /* Translation: ### Same TLUT address %08x %d */
                 EMU64_INFOF("### 同じTLUTアドレスです %08x %d\n", addr, tlut_name);
 #ifdef TARGET_PC
@@ -4294,7 +4301,11 @@ void emu64::dl_G_SETTIMG() {
 #endif
 
     this->now_setimg.setimg2 = *setimg2;
+    #ifdef TARGET_PC
+    this->now_setimg.setimg2.imgaddr = pc_address_pack(this->seg2k0(setimg2->imgaddr));
+#else
     this->now_setimg.setimg2.imgaddr = (u32)this->seg2k0(setimg2->imgaddr);
+#endif
 }
 
 void emu64::dl_G_SETENVCOLOR() {
@@ -5318,7 +5329,7 @@ void emu64::dl_G_BRANCH_Z() {
     EMU64_WARNF("gsSPBranchLessZraw(%s, %d, 0x%08x),", this->segchk(this->rdpHalf_1), (this->gfx.words.w0 / 2) & 0x7FF,
                 this->gfx.words.w1);
 
-    this->gfx_p = (Gfx*)((int)this->work_ptr - sizeof(Gfx));
+    this->gfx_p = ((Gfx*)this->work_ptr - 1);
     /* Translation: gsSPBranchLessZraw isn't implemented yet */
     this->Printf0("gsSPBranchLessZrawはまだインプリメントされていません\n");
 }
@@ -5446,7 +5457,15 @@ void emu64::dl_G_MOVEWORD() {
             EMU64_WARNF("gsSPSegmentA(%d, 0x%08x),", segment, moveword->data);
 #ifdef TARGET_PC
             /* On PC, store address directly (no GC physical address mapping) */
+            #ifdef PC_NATIVE_64
+            uintptr_t base = moveword->data == PC_GBI_STATIC_ADDRESS
+                ? this->gfx.words.native_address : moveword->data;
+            uintptr_t decoded;
+            if (base <= UINT32_MAX && pc_address_try_unpack((uint32_t)base, &decoded)) base = decoded;
+            if (segment < EMU64_NUM_SEGMENTS) this->segments[segment] = base;
+#else
             this->segments[segment] = moveword->data;
+#endif
 #else
             this->segments[segment] = (0x80000000 + (moveword->data & 0x0FFFFFFF));
             if (segment >= EMU64_NUM_SEGMENTS ||

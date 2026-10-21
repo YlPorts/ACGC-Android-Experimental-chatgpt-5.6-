@@ -1,0 +1,242 @@
+name: Animal Crossing Android V6.0 candidates
+
+on:
+  workflow_dispatch:
+    inputs:
+      signed_build_run_id:
+        description: Optional successful build to verify after external signing (leave empty for a normal build)
+        type: string
+        default: ''
+      signed_release_tag:
+        description: Matching published v6.0-rcN tag when verifying externally signed APKs
+        type: string
+        default: ''
+  workflow_call:
+    inputs:
+      products:
+        description: JSON array of architecture flavors
+        type: string
+        default: '["universal", "arm64", "arm32"]'
+    secrets:
+      ACGC_SIGNING_KEY:
+        required: false
+      ACGC_SIGNING_PASSWORD:
+        required: false
+  push:
+    paths:
+      - 'android/**'
+      - 'pc/**'
+      - 'src/**'
+      - 'include/**'
+      - 'tests/**'
+      - 'tools/validation/**'
+      - '.gitmodules'
+      - '.github/workflows/android*.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'pc/**'
+      - 'src/**'
+      - 'include/**'
+      - 'tests/**'
+      - 'tools/validation/**'
+      - '.github/workflows/android*.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-v6-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NDK_VERSION: '28.2.13676358'
+
+jobs:
+  native-tests:
+    if: inputs.signed_build_run_id == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install cross compilers, test runners and NDK
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc g++ gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user libsdl2-dev libegl1-mesa-dev libgles2-mesa-dev
+          sdkmanager "ndk;$NDK_VERSION"
+      - name: Compare persistent layouts against the unchanged V5 ARM32 baseline
+        run: python3 tools/validation/check_save_layout.py --ndk "$ANDROID_HOME/ndk/$NDK_VERSION" --output build/validation/save-layout.json
+      - name: Run host memory tests with ASan and UBSan
+        run: python3 tools/validation/run_native_tests.py --sanitize --output build/tests/host
+      - name: Verify the Android native crash report decoder
+        run: python3 tools/validation/test_crash_trace.py
+      - name: Render real Android GLES shaders and Emu64 display lists with Mesa
+        run: python3 tools/validation/run_gles_tests.py --output build/tests/gles
+      - name: Run isolated ARM32 and AArch64 component tests
+        run: |
+          python3 tools/validation/run_native_tests.py --cc arm-linux-gnueabihf-gcc --cxx arm-linux-gnueabihf-g++ --runner qemu-arm --static --output build/tests/arm32
+          python3 tools/validation/run_native_tests.py --cc aarch64-linux-gnu-gcc --cxx aarch64-linux-gnu-g++ --runner qemu-aarch64 --static --output build/tests/arm64
+      - name: Cross-read and re-encode save payloads in both directions
+        run: |
+          cmp build/tests/arm32/fixture.save build/tests/arm64/fixture.save
+          qemu-aarch64 build/tests/arm64/save_test build/tests/arm32/fixture.save build/tests/arm64/from-arm32.save
+          qemu-arm build/tests/arm32/save_test build/tests/arm64/fixture.save build/tests/arm32/from-arm64.save
+          cmp build/tests/arm32/fixture.save build/tests/arm64/from-arm32.save
+          cmp build/tests/arm64/fixture.save build/tests/arm32/from-arm64.save
+          cmp build/tests/arm32/synthesis.pcm build/tests/arm64/synthesis.pcm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: V6-native-validation
+          path: |
+            build/validation/*.json
+            build/tests/*/results.json
+            build/tests/gles/*.log
+          if-no-files-found: error
+
+  apk:
+    needs: native-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: ${{ fromJSON(inputs.products || '["universal", "arm64", "arm32"]') }}
+    env:
+      CCACHE_MAXSIZE: 2G
+      CCACHE_BASEDIR: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Verify pinned SDL2 checkout
+        run: |
+          test "$(git -C android/SDL rev-parse HEAD)" = fa24d868ac2f8fd558e4e914c9863411245db8fd
+          printf '%s\n' \
+            '2c23278a62dc9f96ab11bee897d9f53e6479d6419135e4560ce822a6431df5e5  android/SDL/android-project/gradle/wrapper/gradle-wrapper.jar' \
+            '2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046  android/gradle/wrapper/gradle-wrapper.jar' | sha256sum --check
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Validate the official app wrapper and pinned SDL wrapper
+        uses: gradle/actions/wrapper-validation@v4
+        with:
+          # This is SDL 2.30.11's unused wrapper, verified against upstream
+          # fa24d868ac2f8fd558e4e914c9863411245db8fd. The app uses the official
+          # Gradle 8.11.1 wrapper, which must pass the normal official checksum list.
+          allow-checksums: 2c23278a62dc9f96ab11bee897d9f53e6479d6419135e4560ce822a6431df5e5
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          # The complete validation above includes SDL's explicitly pinned checksum.
+          validate-wrappers: false
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: native-v6-${{ runner.os }}-${{ matrix.flavor }}-${{ github.sha }}
+          restore-keys: |
+            native-v6-${{ runner.os }}-${{ matrix.flavor }}-
+            native-v6-${{ runner.os }}-
+      - name: Install SDK, NDK, CMake and compiler cache
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ccache
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'cmake;3.22.1' "ndk;$NDK_VERSION"
+      - name: Select persistent signing key or unsigned build input
+        env:
+          ACGC_SIGNING_KEY: ${{ secrets.ACGC_SIGNING_KEY }}
+          ACGC_SIGNING_PASSWORD: ${{ secrets.ACGC_SIGNING_PASSWORD }}
+        run: |
+          if [ -n "$ACGC_SIGNING_KEY" ] && [ -n "$ACGC_SIGNING_PASSWORD" ]; then
+            umask 077
+            printf '%s' "$ACGC_SIGNING_KEY" | base64 --decode > "$RUNNER_TEMP/acgc-signing.p12"
+            echo "ACGC_KEYSTORE_PATH=$RUNNER_TEMP/acgc-signing.p12" >> "$GITHUB_ENV"
+            echo "ACGC_KEYSTORE_PASSWORD=$ACGC_SIGNING_PASSWORD" >> "$GITHUB_ENV"
+          elif [ -z "$ACGC_SIGNING_KEY" ] && [ -z "$ACGC_SIGNING_PASSWORD" ]; then
+            echo 'ACGC_UNSIGNED_BUILD=1' >> "$GITHUB_ENV"
+            echo 'Signing secrets unavailable: build and validate unsigned inputs only. These are not installable candidates.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'ACGC_SIGNING_KEY and ACGC_SIGNING_PASSWORD must be configured together.' >&2
+            exit 1
+          fi
+      - name: Build architecture variant
+        working-directory: android
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          TASK="assemble${FLAVOR^}Debug"
+          ./gradlew --no-daemon --max-workers=3 "$TASK"
+      - name: Verify every ABI, dependency, JNI export, 16 KB alignment and signature
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          case "$FLAVOR" in
+            universal) LABEL=Universal; ABIS=(--abi armeabi-v7a --abi arm64-v8a) ;;
+            arm64) LABEL=ARM64; ABIS=(--abi arm64-v8a) ;;
+            arm32) LABEL=ARM32; ABIS=(--abi armeabi-v7a) ;;
+          esac
+          KEYCHECK=()
+          if [ -n "${ACGC_KEYSTORE_PATH:-}" ]; then
+            APK="android/app/build/outputs/apk/$FLAVOR/debug/app-$FLAVOR-debug.apk"
+            KEYCHECK=(--keystore "$ACGC_KEYSTORE_PATH")
+            SUFFIX=''
+          else
+            INPUT="android/app/build/outputs/apk/$FLAVOR/debug/app-$FLAVOR-debug-unsigned.apk"
+            APK="$RUNNER_TEMP/acgc-$FLAVOR-aligned-unsigned.apk"
+            "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -P 16 4 "$INPUT" "$APK"
+            KEYCHECK=(--unsigned)
+            SUFFIX=-unsigned
+          fi
+          CLASSES="android/app/build/intermediates/javac/${FLAVOR}Debug/compile${FLAVOR^}DebugJavaWithJavac/classes"
+          python3 tools/validation/check_apk.py "$APK" "${ABIS[@]}" "${KEYCHECK[@]}" --jni-classes "$CLASSES" --ndk "$ANDROID_HOME/ndk/$NDK_VERSION" --build-tools "$ANDROID_HOME/build-tools/35.0.0" --output "build/validation/apk-$FLAVOR.json"
+          mkdir -p dist
+          cp "$APK" "dist/Animal-Crossing-Android-V6.0-$LABEL$SUFFIX.apk"
+          cp "build/validation/apk-$FLAVOR.json" dist/
+          echo "APK_LABEL=$LABEL" >> "$GITHUB_ENV"
+          echo 'Native packaging checks passed. Only builds with signature_verified=true are signed candidates. Android gameplay and Mali hardware acceptance remain required.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve matching native crash symbols for both ABIs
+        if: matrix.flavor == 'universal'
+        run: |
+          python3 tools/validation/collect_native_symbols.py dist/*.apk --ndk "$ANDROID_HOME/ndk/$NDK_VERSION" --output build/validation/native-symbols
+      - name: Upload matching native crash symbols
+        if: matrix.flavor == 'universal'
+        uses: actions/upload-artifact@v4
+        with:
+          name: V6-native-symbols-Universal
+          path: build/validation/native-symbols/
+          if-no-files-found: error
+      - name: Upload signed candidate
+        if: env.ACGC_KEYSTORE_PATH != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Animal-Crossing-Android-V6.0-${{ env.APK_LABEL }}
+          path: dist/*
+          if-no-files-found: error
+      - name: Upload unsigned build input and validation report
+        if: env.ACGC_KEYSTORE_PATH == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: V6-unsigned-${{ env.APK_LABEL }}-build
+          path: dist/*
+          if-no-files-found: error
+
+  verify-signed:
+    if: github.event_name == 'workflow_dispatch' && inputs.signed_build_run_id != ''
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/android-v6-verify-signatures.yml
+    with:
+      build_run_id: ${{ inputs.signed_build_run_id }}
+      release_tag: ${{ inputs.signed_release_tag }}

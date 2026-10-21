@@ -1,6 +1,7 @@
 #include "Famicom/famicomPriv.h"
 
 #ifdef TARGET_PC
+#include "pc_guest_memory.h"
 extern "C" void pc_fixnes_write_wram(unsigned int ofs, const unsigned char* data, unsigned int size);
 #endif
 
@@ -550,7 +551,7 @@ static u8* nesinfo_next_tag(u8* data) {
 }
 
 static u16 calc_check_sum2(void* data, size_t size) {
-    if (((u32)data & 1) == 0) {
+    if (((uintptr_t)data & 1) == 0) {
         u16 sum;
         size_t i;
         u16* data2;
@@ -963,7 +964,16 @@ extern void nesinfo_tag_process2() {
                     default: {
                         /* This gives us an effective patch application range of [0x80000000, 0x807FFFFF] */
                         if (patch_type >= 0x80 && patch_type <= 0xFF) {
+                            #ifdef TARGET_PC
+                            u32 guest = ((0x8000u + (patch_type - 0x80u)) << 16) + patch_ofs;
+                            if (!pc_guest_write(guest, patch_data_p, patch_size))
+                                OSReport("[NES] Unmapped GameCube patch address %08x (%u bytes)\n", guest, (unsigned)patch_size);
+                            patch_data_p += patch_size;
+                            patch_size = 0;
+                            dst_p = nullptr;
+#else
                             dst_p = (u8*)((0x8000 + (patch_type - 0x80)) << 16) + patch_ofs;
+#endif
                         } else {
                             dst_p = nullptr;
                         }

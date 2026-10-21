@@ -7,6 +7,7 @@
 #include "PR/gbi.h"
 #include "pc_assets.h"
 #include "pc_disc.h"
+#include "pc_guest_memory.h"
 
 extern int g_pc_verbose;
 
@@ -91,7 +92,11 @@ void pc_load_asset(const char* bin_path, void* dest, unsigned int size,
         if (f) { fread(dest, 1, size, f); fclose(f); loaded = 1; }
     }
     if (!loaded) fprintf(stderr, "[PC] ASSET MISSING: %s\n", bin_path ? bin_path : "(rom)");
-    if (loaded) do_swap(dest, size, swap_type);
+    if (loaded) {
+        do_swap(dest, size, swap_type);
+        if (rom_src == SRC_DOL && g_dol_data)
+            pc_guest_map_dol_asset(g_dol_data, rom_off, dest, size, swap_type);
+    }
 }
 
 /* Extern declarations */

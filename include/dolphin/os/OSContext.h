@@ -152,7 +152,11 @@ typedef struct OSContext
     /*0x1C4*/ f64 psf[32];
 } OSContext;
 
+#ifdef TARGET_PC
+void* OSGetStackPointer(void);
+#else
 u32 OSGetStackPointer(void);
+#endif
 void OSDumpContext(OSContext *context);
 void OSLoadContext(OSContext *context);
 u32 OSSaveContext(OSContext *context);

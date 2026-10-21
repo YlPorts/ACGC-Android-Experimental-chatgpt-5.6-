@@ -45,13 +45,13 @@ static void Player_actor_CorrectSomething_Putaway_net(ACTOR* actor, GAME* game) 
 
         if (Player_actor_Check_AnimationFrame(fc, 17.0f)) {
             if (player->item_net_catch_type == 0) {
-                Common_Get(clip).insect_clip->dt_proc((ACTOR*)label, game);
+                Common_Get(clip).insect_clip->dt_proc(PC_REF_PTR(ACTOR*, label), game);
             }
         } else if (fc->current_frame < 17.0f) {
             if (player->item_net_catch_type == 0) {
-                ((ACTOR*)label)->scale.x *= 0.89125f;
-                ((ACTOR*)label)->scale.y *= 0.89125f;
-                ((ACTOR*)label)->scale.z *= 0.89125f;
+                (PC_REF_PTR(ACTOR*, label))->scale.x *= 0.89125f;
+                (PC_REF_PTR(ACTOR*, label))->scale.y *= 0.89125f;
+                (PC_REF_PTR(ACTOR*, label))->scale.z *= 0.89125f;
             }
             Player_actor_CorrectSomething_net(actor, &player->left_hand_pos);
         }
@@ -82,7 +82,7 @@ static void Player_actor_request_proc_index_fromPutaway_net(ACTOR* actor, GAME* 
             if (player->item_net_catch_type == 0) {
                 mSM_open_submenu_new2(
                     &play->submenu, mSM_OVL_INVENTORY, mSM_IV_OPEN_EXCHANGE,
-                    (mActor_name_t)(((aINS_INSECT_ACTOR*)player->item_net_catch_label)->type + ITM_INSECT_START), NULL,
+                    (mActor_name_t)((PC_REF_PTR(aINS_INSECT_ACTOR*, player->item_net_catch_label))->type + ITM_INSECT_START), NULL,
                     actor->shape_info.rotation.y);
             }
         } else {

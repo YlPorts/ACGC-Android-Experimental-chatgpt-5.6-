@@ -13,16 +13,17 @@ set(CMAKE_CXX_STANDARD 17)
 option(PC_CONSOLE "Show console window (disables -mwindows, useful for debugging)" OFF)
 
 # =============================================================================
-# 32-bit enforcement (required: JSystem casts pointers to u32)
+# Native 64-bit migration is opt-in until game/device acceptance is complete.
+# This switch enables real compiler diagnostics; it is not a compatibility claim.
 # =============================================================================
+option(ACGC_EXPERIMENTAL_ARM64 "Enable the in-progress native 64-bit port" OFF)
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(FATAL_ERROR
-        "This project MUST be built as 32-bit (pointer-to-u32 casts in JSystem).\n"
-        "  Android:       Build only the armeabi-v7a ABI\n"
-        "  Windows/MSYS2: Use the MINGW32 shell (not MINGW64)\n"
-        "  Linux: Use a 32-bit toolchain, e.g.:\n"
-        "    cmake .. -DCMAKE_C_COMPILER=i686-linux-gnu-gcc -DCMAKE_CXX_COMPILER=i686-linux-gnu-g++\n"
-        "    OR: cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-linux32.cmake")
+    if(NOT ACGC_EXPERIMENTAL_ARM64)
+        message(FATAL_ERROR
+            "Native 64-bit migration is not yet validated. For development use "
+            "-DACGC_EXPERIMENTAL_ARM64=ON; see docs/V6_ARM64_AUDIT_ES.md")
+    endif()
+    add_compile_definitions(PC_NATIVE_64)
 endif()
 
 # Allow mixed C/C++ linkage
@@ -284,6 +285,7 @@ set(PC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_gx_tev.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_gx_texture.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_gbi_runtime.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_address.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_os.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_dvd.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_pad.c
@@ -292,11 +294,15 @@ set(PC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_card.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_vi.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_audio.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_audio_bank.c
+    src/pc_bx.c
+    src/pc_guest_memory.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_aram.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_misc.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_mtx.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_m_card.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_save_bswap.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_save_layout.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_model_viewer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_texture_pack.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_settings.c
@@ -304,6 +310,7 @@ set(PC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_language_graphics.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_android_bridge.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_profiler.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_diagnostics.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_pause_menu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_settings_menu.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_menu_util.c
@@ -312,6 +319,7 @@ set(PC_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_nes_fixnes.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_stubs.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_stubs_cpp.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_jsystem_heap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_assets.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pc_disc.c
 )
@@ -400,6 +408,11 @@ add_compile_options($<$<COMPILE_LANGUAGE:C>:-Dnullptr=NULL>)
 # =============================================================================
 # Decomp code: suppress all warnings (fires heavily on decompiled code)
 set(DECOMP_WARN_FLAGS "-w;-fpermissive")
+if(CMAKE_SIZEOF_VOID_P EQUAL 8 AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+    # -w would hide pointer truncation even with -Werror. Retain the legacy
+    # warning policy while making architecture/address violations fatal.
+    set(DECOMP_WARN_FLAGS "-Wno-everything;-fpermissive;-Werror=pointer-to-int-cast;-Werror=int-to-pointer-cast;$<$<COMPILE_LANGUAGE:C>:-Werror=int-conversion>;-ferror-limit=0")
+endif()
 if(ANDROID)
     # Clang treats legacy decomp constructs such as `return;` in a non-void
     # function as hard errors. They are tolerated by the original PC toolchain.
@@ -459,6 +472,7 @@ if(ANDROID)
         target_link_libraries(ac_pc SDL2)
     endif()
     target_link_libraries(ac_pc GLESv3 android log OpenSLES m dl)
+    target_link_options(ac_pc PRIVATE "-Wl,--no-undefined")
 elseif(TARGET SDL2::SDL2)
     target_link_libraries(ac_pc glad SDL2::SDL2)
 else()

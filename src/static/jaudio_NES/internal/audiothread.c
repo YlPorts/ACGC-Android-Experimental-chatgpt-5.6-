@@ -1,3 +1,4 @@
+#include "dolphin/ai.h"
 #include "jaudio_NES/audiothread.h"
 
 #include "dolphin/os.h"

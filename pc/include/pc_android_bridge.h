@@ -15,6 +15,7 @@ enum {
     PC_ANDROID_ACTION_CHANGE_FOLDER   = 1 << 5,
     PC_ANDROID_ACTION_RESTART_GAME    = 1 << 6,
     PC_ANDROID_ACTION_CLOSE_APP       = 1 << 7,
+    PC_ANDROID_ACTION_COPY_DIAGNOSTICS = 1 << 8,
 };
 
 void pc_android_request_action(int action_flags);

@@ -1,5 +1,9 @@
 /* pc_main.c - PC entry point: SDL2/GL init and boot sequence */
 #include "pc_platform.h"
+#include "pc_diagnostics.h"
+#ifndef _WIN32
+#include <link.h>
+#endif
 #include "pc_gx_internal.h"
 #include "pc_texture_pack.h"
 #include "pc_settings.h"
@@ -56,8 +60,8 @@ static void pc_write_startup_stage(const char* stage) { (void)stage; }
 #endif
 
 /* exe image range -- used by seg2k0 to distinguish pointers from segment addresses */
-unsigned int pc_image_base = 0;
-unsigned int pc_image_end  = 0;
+uintptr_t pc_image_base = 0;
+uintptr_t pc_image_end  = 0;
 
 void pc_platform_init(void) {
 #ifdef _WIN32
@@ -152,6 +156,7 @@ void pc_platform_init(void) {
     }
 #endif
 
+    pc_diagnostics_log("GL vendor=%s renderer=%s version=%s", glGetString(GL_VENDOR), glGetString(GL_RENDERER), glGetString(GL_VERSION));
     pc_gx_init();
     pc_texture_pack_init();
 #ifdef PC_ENHANCEMENTS
@@ -190,6 +195,7 @@ void pc_platform_shutdown(void) {
         g_pc_window = NULL;
     }
     SDL_Quit();
+    pc_diagnostics_end();
 }
 
 void pc_platform_update_window_size(void) {
@@ -322,6 +328,9 @@ int main(int argc, char* argv[]) {
     }
 #endif
 
+#ifdef TARGET_ANDROID
+    pc_diagnostics_begin();
+#endif
     pc_write_startup_stage("native-entry");
 
     for (int i = 1; i < argc; i++) {
@@ -425,20 +434,20 @@ int main(int argc, char* argv[]) {
         HMODULE exe = GetModuleHandle(NULL);
         IMAGE_DOS_HEADER* dos = (IMAGE_DOS_HEADER*)exe;
         IMAGE_NT_HEADERS* nt = (IMAGE_NT_HEADERS*)((char*)exe + dos->e_lfanew);
-        pc_image_base = (unsigned int)(uintptr_t)exe;
+        pc_image_base = (uintptr_t)exe;
         pc_image_end = pc_image_base + nt->OptionalHeader.SizeOfImage;
     }
 #else
     {
         Dl_info dl;
         if (dladdr((void*)pc_platform_init, &dl) && dl.dli_fbase) {
-            pc_image_base = (unsigned int)(uintptr_t)dl.dli_fbase;
-            Elf32_Ehdr* ehdr = (Elf32_Ehdr*)dl.dli_fbase;
-            Elf32_Phdr* phdr = (Elf32_Phdr*)((char*)dl.dli_fbase + ehdr->e_phoff);
-            unsigned int max_end = 0;
+            pc_image_base = (uintptr_t)dl.dli_fbase;
+            ElfW(Ehdr)* ehdr = (ElfW(Ehdr)*)dl.dli_fbase;
+            ElfW(Phdr)* phdr = (ElfW(Phdr)*)((char*)dl.dli_fbase + ehdr->e_phoff);
+            uintptr_t max_end = 0;
             for (int i = 0; i < ehdr->e_phnum; i++) {
                 if (phdr[i].p_type == PT_LOAD) {
-                    unsigned int seg_end = phdr[i].p_vaddr + phdr[i].p_memsz;
+                    uintptr_t seg_end = phdr[i].p_vaddr + phdr[i].p_memsz;
                     if (seg_end > max_end) max_end = seg_end;
                 }
             }

@@ -67,7 +67,7 @@ static void aINS_destruct(ACTOR* actorx, GAME* game) {
     switch (insect->type) {
         case aINS_INSECT_TYPE_SPIRIT:
             /* If we didn't catch the spirit, update it's location */
-            if ((ACTOR*)mPlib_Get_item_net_catch_label() != actorx) {
+            if (PC_REF_PTR(ACTOR*, mPlib_Get_item_net_catch_label()) != actorx) {
                 aINS_regist_set_block_table(actorx);
             }
         /* fallthrough spirit -> firefly */

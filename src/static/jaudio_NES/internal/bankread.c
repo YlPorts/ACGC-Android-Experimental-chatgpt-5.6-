@@ -5,12 +5,21 @@
 
 #define BANKP_SIZE (0x100)
 static Bank_* bankp[BANKP_SIZE];
+#ifdef PC_NATIVE_64
+#include "pc_bx.h"
+static PcBx* pc_banks[BANKP_SIZE];
+static PcBx* pc_test_bank;
+static u32 pc_bank_u32(const u8* p) {
+    return ((u32)p[0]<<24) | ((u32)p[1]<<16) | ((u32)p[2]<<8) | p[3];
+}
+#endif
 
 /*
  * --INFO--
  * Address:	8000BE00
  * Size:	000024
  */
+#ifndef PC_NATIVE_64
 static void PTconvert(void** pointer, u32 base_address)
 {
 	if (*pointer >= (void*)base_address || *pointer == NULL) {
@@ -24,8 +33,15 @@ static void PTconvert(void** pointer, u32 base_address)
  * Address:	8000BE40
  * Size:	000270
  */
+#endif
 Bank_* Bank_Test(u8* ibnk_address)
 {
+#ifdef PC_NATIVE_64
+    PcBx* decoded=pc_bx_decode(ibnk_address,pc_bank_u32(ibnk_address+4),0);
+    if (!decoded) return NULL;
+    pc_bx_free(pc_test_bank); pc_test_bank=decoded;
+    return pc_bx_bank(decoded);
+#else
 	u32 i, j, k;
 	u32 base_addr    = (u32)ibnk_address;
 	Bank_* startBank = (Bank_*)(ibnk_address + 0x20);
@@ -104,6 +120,7 @@ Bank_* Bank_Test(u8* ibnk_address)
 	}
 
 	return startBank;
+#endif
 }
 
 /*
@@ -113,8 +130,16 @@ Bank_* Bank_Test(u8* ibnk_address)
  */
 static BOOL __Bank_Regist_Inner(u8* ibnk, u32 param_2, u32 param_3)
 {
-	Jac_BnkConnectTableSet(param_3, param_2);
-	bankp[param_2] = Bank_Test(ibnk);
+    if (param_2 >= BANKP_SIZE) return FALSE;
+#ifdef PC_NATIVE_64
+    PcBx* decoded=pc_bx_decode(ibnk,pc_bank_u32(ibnk+4),0);
+    if (!decoded) return FALSE;
+    pc_bx_free(pc_banks[param_2]); pc_banks[param_2]=decoded;
+    bankp[param_2]=pc_bx_bank(decoded);
+#else
+    bankp[param_2] = Bank_Test(ibnk);
+#endif
+    Jac_BnkConnectTableSet(param_3, param_2);
 	if (!bankp[param_2])
 		return FALSE;
 	return TRUE;
@@ -127,7 +152,11 @@ static BOOL __Bank_Regist_Inner(u8* ibnk, u32 param_2, u32 param_3)
  */
 BOOL Bank_Regist(void* ibnk, u32 param_2)
 {
-	return __Bank_Regist_Inner((u8*)ibnk, param_2, ((Ibnk_*)ibnk)->_08);
+	#ifdef PC_NATIVE_64
+    return __Bank_Regist_Inner((u8*)ibnk, param_2, pc_bank_u32((u8*)ibnk+8));
+#else
+    return __Bank_Regist_Inner((u8*)ibnk, param_2, ((Ibnk_*)ibnk)->_08);
+#endif
 }
 
 /*
@@ -147,8 +176,14 @@ BOOL Bank_Regist_Direct(void* ibnk, u32 param_2, u32 param_3)
  */
 void Bank_Init()
 {
+#ifdef PC_NATIVE_64
+    pc_bx_free(pc_test_bank); pc_test_bank=NULL;
+#endif
 	for (int i = 0; i < BANKP_SIZE; ++i) {
-		bankp[i] = NULL;
+#ifdef PC_NATIVE_64
+        pc_bx_free(pc_banks[i]); pc_banks[i]=NULL;
+#endif
+        bankp[i] = NULL;
 	}
 }
 

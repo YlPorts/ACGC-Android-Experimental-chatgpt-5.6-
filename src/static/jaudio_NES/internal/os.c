@@ -121,6 +121,13 @@ extern s32 Z_osEPiStartDma(OSPiHandle* handler, OSIoMesg* msg, s32 dir) {
     return 0;
 }
 
+s32 Z_osRecvMesgU32(OSMesgQueue* mq, u32* word, s32 flags) {
+    OSMesg message = NULL;
+    s32 result = Z_osRecvMesg(mq, word ? &message : NULL, flags);
+    if (word) *word = (u32)(uintptr_t)message;
+    return result;
+}
+
 void Z_bcopy(void* src, void* dst, size_t size) {
     Jac_bcopy(src, dst, size);
 }

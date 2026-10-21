@@ -41,10 +41,10 @@
 static int s_audio_original_snapshotted = 0;
 static int s_audio_override_enabled = 0;
 static char s_audio_rom_path[PC_LANG_PATH_MAX] = {0};
-static u8 s_audio_seq_original[PC_LANG_AUDIO_SEQ_HEADER_SIZE];
-static u8 s_audio_bank_original[PC_LANG_AUDIO_BANK_HEADER_SIZE];
-static u8 s_audio_wave_original[PC_LANG_AUDIO_WAVE_HEADER_SIZE];
-static u8 s_audio_data_original[PC_LANG_AUDIO_DATA_HEADER_SIZE];
+static u8 s_audio_seq_original[sizeof(ArcHeader) + 249 * sizeof(ArcEntry)];
+static u8 s_audio_bank_original[sizeof(ArcHeader) + 159 * sizeof(ArcEntry)];
+static u8 s_audio_wave_original[sizeof(ArcHeader) + 6 * sizeof(ArcEntry)];
+static u8 s_audio_data_original[sizeof(ArcHeader) + 3 * sizeof(ArcEntry)];
 
 /* Runtime asset arrays are writable on TARGET_PC and are initialized from the
  * user's USA disc before pc_language_init(). A PAL pack may safely replace

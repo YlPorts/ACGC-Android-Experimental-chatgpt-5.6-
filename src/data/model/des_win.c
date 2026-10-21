@@ -126,7 +126,7 @@ Vtx des_win_v[] = {
 #endif
 
 #ifdef TARGET_PC
-u8 des_win_before[0x20];
+u8 des_win_before[4 * sizeof(Gfx)] ATTRIBUTE_ALIGN(16);
 #else
 u8 des_win_before[] = {
 #include "assets/des_win_before.inc"

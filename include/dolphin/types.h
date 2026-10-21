@@ -5,8 +5,16 @@ typedef signed   char          s8;
 typedef unsigned char          u8;
 typedef signed   short int     s16;
 typedef unsigned short int     u16;
+#if defined(TARGET_PC) && __SIZEOF_LONG__ == 8
+typedef signed   int          s32;
+#else
 typedef signed   long          s32;
+#endif
+#if defined(TARGET_PC) && __SIZEOF_LONG__ == 8
+typedef unsigned int          u32;
+#else
 typedef unsigned long          u32;
+#endif
 typedef signed   long long int s64;
 typedef unsigned long long int u64;
 

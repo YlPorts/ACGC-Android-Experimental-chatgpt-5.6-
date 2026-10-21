@@ -1559,18 +1559,16 @@ void HS_Event_Reset() {
 }
 
 void HS_Event_Update() {
-    //! TODO: this has to be wrong
-    typedef struct {
-        u8 a, b;
-    } tempBuf;
-    tempBuf message;
+    OSMessage message;
 
     while (1) {
-        // this should take a void** for message, and it fills out the OSMessage(which is a void*)
-        if (!OSReceiveMessage(&SoundQ, (OSMessage*)&message, 0)) {
+        if (!OSReceiveMessage(&SoundQ, &message, 0)) {
             break;
         }
-        __Sound_Write_HVC(message.a, message.b);
+        /* HS_Event_Write packs a register and byte into a 32-bit command.
+         * Decode its value explicitly instead of aliasing two bytes as a pointer. */
+        u32 command = (u32)(uintptr_t)message;
+        __Sound_Write_HVC((u8)(command >> 24), (u8)(command >> 16));
     }
 }
 
@@ -1579,7 +1577,7 @@ void HS_Event_Write(u16 a, u8 b) {
         a = (a - 0xf40);
     }
 
-    OSSendMessage(&SoundQ, (OSMessage)((a - 0x4000) << 0x18 | b << 0x10), 0);
+    OSSendMessage(&SoundQ, (OSMessage)(uintptr_t)(u32)((a - 0x4000) << 0x18 | b << 0x10), 0);
     switch (a & 0xff) {
         case 3: {
             DUMMY_ACTIVE[0] = 2;

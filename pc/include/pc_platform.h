@@ -2,11 +2,8 @@
 #ifndef PC_PLATFORM_H
 #define PC_PLATFORM_H
 
-/* 32-bit required: decomp code (JSystem, emu64) casts pointers to u32 */
+/* Process addresses use uintptr_t; console data retains fixed widths. */
 #include <stdint.h>
-#if UINTPTR_MAX != 0xFFFFFFFFu
-#error "This project must be compiled as 32-bit (pointer size != 4 bytes)"
-#endif
 
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -105,8 +102,8 @@ void pc_platform_swap_buffers(void);
 int  pc_platform_poll_events(void);
 
 /* EXE image range for seg2k0 pointer disambiguation (vs N64 segment addresses) */
-extern unsigned int pc_image_base;
-extern unsigned int pc_image_end;
+extern uintptr_t pc_image_base;
+extern uintptr_t pc_image_end;
 
 /* --- Model viewer --- */
 extern int g_pc_model_viewer;

@@ -10,8 +10,8 @@
 typedef struct DVDCall_ {
     u32 owner;
     char fileName[64];
-    u32 dst;
-    u32 src;
+    uintptr_t dst;
+    uintptr_t src;
     u32 length;
     u32* callbackStatus;
     Jac_DVDCallback callback;
@@ -141,9 +141,10 @@ static void __DoFinish(DVDCall* call, u32 arg) {
     }
 }
 
-static void __DVDT_CheckBack(void* cb) {
+static s32 __DVDT_CheckBack(void* cb) {
     DVDCall* callback = (DVDCall*)cb;
     __DoFinish(callback, callback->owner);
+    return 0;
 }
 
 extern s32 DVDT_LoadtoARAM_Main(void* arg) {
@@ -186,7 +187,7 @@ extern s32 DVDT_LoadtoARAM_Main(void* arg) {
 
         /* Copy to ARAM synchronously */
         ARQPostRequest(nullptr, 0x12345678, ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_HIGH,
-                       (u32)buf, call->dst, readSize, nullptr);
+                       (uintptr_t)buf, call->dst, readSize, nullptr);
         call->dst += readSize;
     }
 
@@ -206,13 +207,13 @@ extern s32 DVDT_LoadtoARAM(u32 owner, char* name, u32 dst, u32 src, u32 length, 
     call.src = src;
     call.length = length;
 
-    DVDT_AddTask(DVDT_LoadtoARAM_Main, (void*)&call, 0x58);
+    DVDT_AddTask(DVDT_LoadtoARAM_Main, (void*)&call, sizeof(call));
     return 0;
 }
 
 extern s32 DVDT_ARAMtoDRAM_Main(void* arg) {
     DVDCall* call = (DVDCall*)arg;
-    ARQPostRequest(nullptr, (u32)call, ARQ_TYPE_ARAM_TO_MRAM, ARQ_PRIORITY_HIGH,
+    ARQPostRequest(nullptr, PC_PTR_REF(call), ARQ_TYPE_ARAM_TO_MRAM, ARQ_PRIORITY_HIGH,
                    call->src, call->dst, call->length, nullptr);
     __DoFinish(call, call->length);
     return 0;
@@ -220,13 +221,13 @@ extern s32 DVDT_ARAMtoDRAM_Main(void* arg) {
 
 extern s32 DVDT_DRAMtoARAM_Main(void* arg) {
     DVDCall* call = (DVDCall*)arg;
-    ARQPostRequest(nullptr, (u32)call, ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_HIGH,
+    ARQPostRequest(nullptr, PC_PTR_REF(call), ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_HIGH,
                    call->dst, call->src, call->length, nullptr);
     __DoFinish(call, call->length);
     return 0;
 }
 
-extern s32 DVDT_ARAMtoDRAM(u32 owner, u32 dst, u32 src, u32 length, u32* status, Jac_DVDCallback callback) {
+extern s32 DVDT_ARAMtoDRAM(u32 owner, uintptr_t dst, u32 src, u32 length, u32* status, Jac_DVDCallback callback) {
     DVDCall call;
     call.owner = owner;
     call.dst = dst;
@@ -235,11 +236,11 @@ extern s32 DVDT_ARAMtoDRAM(u32 owner, u32 dst, u32 src, u32 length, u32* status,
     call.callback = callback;
     call.src = src;
     call.length = length;
-    DVDT_AddTaskHigh(DVDT_ARAMtoDRAM_Main, (void*)&call, 0x58);
+    DVDT_AddTaskHigh(DVDT_ARAMtoDRAM_Main, (void*)&call, sizeof(call));
     return 0;
 }
 
-extern s32 DVDT_DRAMtoARAM(u32 owner, u32 dst, u32 src, u32 length, u32* status, Jac_DVDCallback callback) {
+extern s32 DVDT_DRAMtoARAM(u32 owner, uintptr_t dst, u32 src, u32 length, u32* status, Jac_DVDCallback callback) {
     DVDCall call;
     call.owner = owner;
     call.dst = dst;
@@ -248,7 +249,7 @@ extern s32 DVDT_DRAMtoARAM(u32 owner, u32 dst, u32 src, u32 length, u32* status,
     call.callback = callback;
     call.src = src;
     call.length = length;
-    DVDT_AddTaskHigh(DVDT_DRAMtoARAM_Main, (void*)&call, 0x58);
+    DVDT_AddTaskHigh(DVDT_DRAMtoARAM_Main, (void*)&call, sizeof(call));
     return 0;
 }
 
@@ -488,7 +489,7 @@ extern s32 DVDT_LoadtoARAM_Main(void* arg) {
             call->length -= buffersize;
         }
 
-        ARQPostRequest(&req[arq_index], 0x12345678, ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_HIGH, (u32)buf, call->dst,
+        ARQPostRequest(&req[arq_index], 0x12345678, ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_HIGH, (uintptr_t)buf, call->dst,
                        readSize, ARAM_DMAfinish);
         buffer_full++;
         arq_index++;
@@ -542,7 +543,7 @@ extern s32 DVDT_ARAMtoDRAM_Main(void* arg) {
 
     buffer_full2++;
 
-    ARQPostRequest(&req, (u32)call, ARQ_TYPE_ARAM_TO_MRAM, ARQ_PRIORITY_HIGH, call->src, call->dst, call->length,
+    ARQPostRequest(&req, PC_PTR_REF(call), ARQ_TYPE_ARAM_TO_MRAM, ARQ_PRIORITY_HIGH, call->src, call->dst, call->length,
                    ARAM_DMAfinish2);
 
     while (buffer_full2 != 0)
@@ -559,7 +560,7 @@ extern s32 DVDT_DRAMtoARAM_Main(void* arg) {
 
     buffer_full2++;
 
-    ARQPostRequest(&req, (u32)call, ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_HIGH, call->dst, call->src, call->length,
+    ARQPostRequest(&req, PC_PTR_REF(call), ARQ_TYPE_MRAM_TO_ARAM, ARQ_PRIORITY_HIGH, call->dst, call->src, call->length,
                    ARAM_DMAfinish2);
 
     while (buffer_full2 != 0)
@@ -570,7 +571,7 @@ extern s32 DVDT_DRAMtoARAM_Main(void* arg) {
     return 0;
 }
 
-extern s32 DVDT_ARAMtoDRAM(u32 owner, u32 dst, u32 src, u32 length, u32* status, Jac_DVDCallback callback) {
+extern s32 DVDT_ARAMtoDRAM(u32 owner, uintptr_t dst, u32 src, u32 length, u32* status, Jac_DVDCallback callback) {
     DVDCall call;
     void* cb = (void*)&call;
 
@@ -591,7 +592,7 @@ extern s32 DVDT_ARAMtoDRAM(u32 owner, u32 dst, u32 src, u32 length, u32* status,
     return 0;
 }
 
-extern s32 DVDT_DRAMtoARAM(u32 owner, u32 dst, u32 src, u32 length, u32* status, Jac_DVDCallback callback) {
+extern s32 DVDT_DRAMtoARAM(u32 owner, uintptr_t dst, u32 src, u32 length, u32* status, Jac_DVDCallback callback) {
     DVDCall call;
     void* cb = (void*)&call;
 
@@ -640,7 +641,8 @@ extern s32 DVDT_CheckPass(u32 owner, u32* status, Jac_DVDCallback callback) {
     call.callbackStatus = status;
     call.callback = callback;
 
-    return DVDT_AddTask((TaskCallback)__DVDT_CheckBack, cb, 0x58);
+    /* This is an in-process task, including native pointers, not disc data. */
+    return DVDT_AddTask((TaskCallback)__DVDT_CheckBack, cb, sizeof(call));
 }
 
 extern s32 Jac_CheckFile(char* file) {

@@ -394,7 +394,7 @@ static void aIDG_actor_move(ACTOR* actor, GAME* game) {
  
     u32 label = mPlib_Get_item_net_catch_label();
 
-    if (label == (u32)actor) {
+    if (label == PC_PTR_REF(actor)) {
         insect->alpha0 = 255;
         aIDG_setupAction(insect, aIDG_ACTION_LET_ESCAPE, game);
     } else {

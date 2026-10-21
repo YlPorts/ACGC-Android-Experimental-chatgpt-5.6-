@@ -81,7 +81,8 @@ typedef struct ALHeap {
 
 /* sizeof(ArcEntry) == 0x10 */
 typedef struct ArcEntry_ {
-    /* 0x00 */ u32 addr;
+    /* Native address or original device offset; wire entries remain 16 bytes. */
+    uintptr_t addr;
     /* 0x04 */ s32 size;
     /* 0x08 */ s8 medium;
     /* 0x09 */ s8 cacheType;
@@ -665,7 +666,7 @@ typedef struct Bgload_ {
     /* 0x01 */ s8 delay;
     /* 0x02 */ s8 medium;
     /* 0x04 */ u8* ram_addr;
-    /* 0x08 */ u32 current_device_addr;
+    /* 0x08 */ uintptr_t current_device_addr;
     /* 0x0C */ u8* current_ram_addr;
     /* 0x10 */ size_t bytes_remaining;
     /* 0x14 */ size_t chunk_size;
@@ -683,7 +684,7 @@ typedef struct lpscache_ {
     /* 0x01 */ u8 seq_or_bank_id;
     /* 0x02 */ u16 inst_id;
     /* 0x04 */ s32 unk_medium_param;
-    /* 0x08 */ u32 current_device_addr;
+    /* 0x08 */ uintptr_t current_device_addr;
     /* 0x0C */ u8* current_ram_addr;
     /* 0x10 */ u8* ram_addr;
     /* 0x14 */ s32 status;
@@ -698,7 +699,7 @@ typedef struct lpscache_ {
 /* sizeof(WaveLoad) == 0x10 */
 typedef struct WaveLoad_ {
     /* 0x00 */ u8* ram_addr;
-    /* 0x04 */ u32 device_addr;
+    /* 0x04 */ uintptr_t device_addr;
     /* 0x08 */ u16 size_unused;
     /* 0x0A */ u16 size;
     /* 0x0C */ u8 unused;

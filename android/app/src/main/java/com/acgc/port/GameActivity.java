@@ -1,6 +1,9 @@
 package com.acgc.port;
 
 import android.content.Intent;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -18,6 +21,10 @@ import android.widget.Toast;
 import org.libsdl.app.SDLActivity;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.nio.charset.StandardCharsets;
 
 public final class GameActivity extends SDLActivity {
     static final String EXTRA_ROM_FD = "rom_fd";
@@ -33,6 +40,7 @@ public final class GameActivity extends SDLActivity {
     private static final int ACTION_CHANGE_FOLDER = 1 << 5;
     private static final int ACTION_RESTART_GAME = 1 << 6;
     private static final int ACTION_CLOSE_APP = 1 << 7;
+    private static final int ACTION_COPY_DIAGNOSTICS = 1 << 8;
 
     private static final int SETTING_TOUCH_VISIBLE = 1;
     private static final int SETTING_TOUCH_OPACITY = 2;
@@ -90,6 +98,7 @@ public final class GameActivity extends SDLActivity {
             if ((actions & ACTION_SYNC_DATA) != 0) {
                 syncFolder(true);
             }
+            if ((actions & ACTION_COPY_DIAGNOSTICS) != 0) copyDiagnostics();
 
             // Actions that close SDL are mutually exclusive in normal use.
             if ((actions & ACTION_CHANGE_FOLDER) != 0) {
@@ -186,6 +195,28 @@ public final class GameActivity extends SDLActivity {
             SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_ESCAPE);
         } catch (UnsatisfiedLinkError error) {
             super.onBackPressed();
+        }
+    }
+
+    private void copyDiagnostics() {
+        try (FileInputStream input = new FileInputStream(new File(getFilesDir(), "diagnostics.txt"));
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int remaining = 65536;
+            while (remaining > 0) {
+                int count = input.read(buffer, 0, Math.min(buffer.length, remaining));
+                if (count < 0) break;
+                output.write(buffer, 0, count);
+                remaining -= count;
+            }
+            String text = "Animal Crossing Android " + getPackageManager().getPackageInfo(getPackageName(), 0).versionName
+                    + "\nAndroid " + Build.VERSION.RELEASE + " / " + Build.MODEL + "\n"
+                    + output.toString(StandardCharsets.UTF_8.name());
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            clipboard.setPrimaryClip(ClipData.newPlainText("ACGC diagnóstico", text));
+            Toast.makeText(this, "Diagnóstico copiado", Toast.LENGTH_LONG).show();
+        } catch (Exception error) {
+            Toast.makeText(this, "No se pudo leer el diagnóstico: " + error.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 

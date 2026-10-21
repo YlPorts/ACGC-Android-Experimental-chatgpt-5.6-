@@ -1,5 +1,8 @@
 /* pc_os.c - Dolphin OS replacement: arena, timers, threads, message queues */
 #include "pc_platform.h"
+#include "dolphin/os/OSMessage.h"
+#include "dolphin/os/OSAlarm.h"
+#include "dolphin/os/OSMutex.h"
 
 #include <time.h>
 
@@ -56,8 +59,8 @@ u32 OSGetTick(void) { return osGetCount(); }
 #define USEC_MAX     1000
 #define MSEC_MAX     1000
 #define SECS_IN_MIN  60
-#define SECS_IN_HOUR (60 * 60)
-#define SECS_IN_DAY  (60 * 60 * 24)
+#define SECS_IN_HOUR (SECS_IN_MIN * 60)
+#define SECS_IN_DAY  (SECS_IN_HOUR * 24)
 #define SECS_IN_YEAR (SECS_IN_DAY * 365)
 /* Days from March 1, year 0 (proleptic Gregorian) to Jan 1, 2000 (GC epoch).
  * = 2000*365 + floor(2000/4) - floor(2000/100) + floor(2000/400) = 730485 */
@@ -104,7 +107,7 @@ static void GetDates(int days, void* td_ptr) {
     td[3] = days - md[month] + 1; /* mday */
 }
 
-void OSTicksToCalendarTime(s64 ticks, void* td_ptr) {
+void OSTicksToCalendarTime(s64 ticks, OSCalendarTime* td_ptr) {
     int* td = (int*)td_ptr;
     int days, secs;
     s64 d;
@@ -132,7 +135,7 @@ void OSTicksToCalendarTime(s64 ticks, void* td_ptr) {
     td[0] = secs % 60;       /* sec */
 }
 
-s64 OSCalendarTimeToTicks(void* td_ptr) {
+s64 OSCalendarTimeToTicks(OSCalendarTime* td_ptr) {
     int* td = (int*)td_ptr;
     s64 secs;
     int ov_mon, mon, year;
@@ -164,22 +167,12 @@ void OSGetSaveRegion(void** start, void** end) {
 }
 
 /* --- Threads (single-threaded, all no-ops) --- */
-typedef struct OSThread {
-    void* stackBase;
-    void* stackEnd;
-    int priority;
-    /* ... rest omitted, game accesses via pointers */
-    u8 _pad[512]; /* padding for fields the game might access */
-} OSThread_PC;
-
-static OSThread_PC main_thread;
-static OSThread_PC* current_thread = &main_thread;
+/* The engine reads these fields directly. Use the same native type on both
+ * sides of the platform boundary, including its OSContext prefix. */
+static OSThread main_thread;
+static OSThread* current_thread = &main_thread;
 
 /* N64 libultra message queue wrappers → Dolphin OS */
-void OSInitMessageQueue(void* queue, void** msgArray, int msgCount);
-BOOL OSSendMessage(void* queue, void* msg, int flags);
-BOOL OSReceiveMessage(void* queue, void** msgPtr, int flags);
-
 void osCreateMesgQueue(void* mq, void* buf, int count) {
     OSInitMessageQueue(mq, (void**)buf, count);
 }
@@ -210,7 +203,7 @@ void osStartThread(void* thread) {
 }
 
 void osSetThreadPri(void* thread, int pri) { (void)thread; (void)pri; }
-void* OSGetCurrentThread(void) { return current_thread; }
+OSThread* OSGetCurrentThread(void) { return current_thread; }
 void* OSGetStackPointer(void) { return &arena_memory; /* dummy */ }
 
 /* --- Interrupts --- */
@@ -318,11 +311,10 @@ void OSVReport(const char* fmt, va_list list) {
 void OSReportDisable(void) {}
 
 /* --- Alarms --- */
-typedef struct OSAlarm { u8 _pad[64]; } OSAlarm;
-void OSSetAlarm(OSAlarm* alarm, s64 tick, void (*callback)(OSAlarm*, void*)) {
+void OSSetAlarm(OSAlarm* alarm, s64 tick, OSAlarmHandler callback) {
     (void)alarm; (void)tick; (void)callback;
 }
-void OSSetPeriodicAlarm(OSAlarm* alarm, s64 start, s64 period, void (*callback)(OSAlarm*, void*)) {
+void OSSetPeriodicAlarm(OSAlarm* alarm, s64 start, s64 period, OSAlarmHandler callback) {
     (void)alarm; (void)start; (void)period; (void)callback;
 }
 void OSCancelAlarm(OSAlarm* alarm) { (void)alarm; }
@@ -368,37 +360,25 @@ void __OSUnlockSramEx(BOOL commit) { (void)commit; }
 
 void msleep(int ms) { SDL_Delay(ms); }
 
-typedef struct OSMutex { int lock; } OSMutex;
-void OSInitMutex(OSMutex* mutex) { mutex->lock = 0; }
-void OSLockMutex(OSMutex* mutex) { mutex->lock = 1; }
-void OSUnlockMutex(OSMutex* mutex) { mutex->lock = 0; }
+void OSInitMutex(OSMutex* mutex) { memset(mutex, 0, sizeof(*mutex)); }
+void OSLockMutex(OSMutex* mutex) { mutex->count = 1; mutex->thread = current_thread; }
+void OSUnlockMutex(OSMutex* mutex) { mutex->count = 0; mutex->thread = NULL; }
 BOOL OSTryLockMutex(OSMutex* mutex) {
-    if (mutex->lock) return FALSE;
-    mutex->lock = 1;
+    if (mutex->count) return FALSE;
+    OSLockMutex(mutex);
     return TRUE;
 }
 
 /* --- Message queue --- */
-/* matches OSMessageQueue from dolphin/os/OSMessage.h */
-typedef struct {
-    u8  _threadQueues[16]; /* queueSend + queueReceive - unused on PC */
-    void** msgArray;       /* _10 */
-    int msgCount;          /* _14 */
-    int firstIndex;        /* _18 */
-    int usedCount;         /* _1C */
-} OSMessageQueue_PC;
-
-void OSInitMessageQueue(void* queue, void** msgArray, int msgCount) {
-    OSMessageQueue_PC* mq = (OSMessageQueue_PC*)queue;
-    memset(mq->_threadQueues, 0, 16);
+void OSInitMessageQueue(OSMessageQueue* mq, OSMessage* msgArray, int msgCount) {
+    memset(mq, 0, sizeof(*mq));
     mq->msgArray = msgArray;
     mq->msgCount = msgCount;
     mq->firstIndex = 0;
     mq->usedCount = 0;
 }
 
-BOOL OSSendMessage(void* queue, void* msg, int flags) {
-    OSMessageQueue_PC* mq = (OSMessageQueue_PC*)queue;
+BOOL OSSendMessage(OSMessageQueue* mq, OSMessage msg, int flags) {
     if (mq->usedCount >= mq->msgCount) {
         /* full */
         return FALSE;
@@ -409,8 +389,7 @@ BOOL OSSendMessage(void* queue, void* msg, int flags) {
     return TRUE;
 }
 
-BOOL OSReceiveMessage(void* queue, void** msgPtr, int flags) {
-    OSMessageQueue_PC* mq = (OSMessageQueue_PC*)queue;
+BOOL OSReceiveMessage(OSMessageQueue* mq, OSMessage* msgPtr, int flags) {
     if (mq->usedCount == 0) {
         return FALSE;
     }
@@ -422,8 +401,7 @@ BOOL OSReceiveMessage(void* queue, void** msgPtr, int flags) {
     return TRUE;
 }
 
-BOOL OSJamMessage(void* queue, void* msg, int flags) {
-    OSMessageQueue_PC* mq = (OSMessageQueue_PC*)queue;
+BOOL OSJamMessage(OSMessageQueue* mq, OSMessage msg, int flags) {
     if (mq->usedCount >= mq->msgCount) {
         return FALSE;
     }
@@ -448,7 +426,6 @@ void OSFreeToHeap(int heap, void* ptr) { free(ptr); }
 int OSCreateHeap(void* lo, void* hi) { return 0; }
 int OSSetCurrentHeap(int heap) { return 0; }
 
-typedef struct OSContext { u8 _pad[1024]; } OSContext;
 void OSClearContext(OSContext* ctx) { memset(ctx, 0, sizeof(OSContext)); }
 
 void* __OSSetExceptionHandler(u8 type, void* handler) {

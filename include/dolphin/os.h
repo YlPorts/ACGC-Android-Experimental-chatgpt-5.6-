@@ -172,7 +172,7 @@ void *OSUncachedToCached(void *ucaddr);
 #define OSUncachedToCached(ucaddr)   ((void*) ((u8*)(ucaddr) - (OS_BASE_UNCACHED - OS_BASE_CACHED)))
 #endif
 
-#define OFFSET(addr, align) (((u32)(addr) & ((align)-1)))
+#define OFFSET(addr, align) (((uintptr_t)(addr) & ((align)-1)))
 
 #ifdef __cplusplus
 }

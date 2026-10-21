@@ -5,49 +5,36 @@
 #include "MSL_C/w_math.h"
 
 #ifdef TARGET_PC
-static_assert(sizeof(void*) == sizeof(u32), "seg2k0 pointer resolution requires 32-bit pointers");
+static_assert(sizeof(u32) == 4, "Segment references must remain 32-bit");
 
 /* Executable image range from pc_main.c — BSS/data can collide with N64 segments */
-extern "C" unsigned int pc_image_base;
-extern "C" unsigned int pc_image_end;
+extern "C" uintptr_t pc_image_base;
+extern "C" uintptr_t pc_image_end;
 extern "C" uintptr_t pc_gbi_unpack_runtime_ptr(unsigned int packed);
 
-u32 emu64::seg2k0(u32 segadr) {
-    uintptr_t odd_ptr = pc_gbi_unpack_runtime_ptr(segadr);
-    if (odd_ptr != 0) {
-        return (u32)odd_ptr;
-    }
+uintptr_t emu64::seg2k0(uintptr_t segadr) {
+#ifdef PC_NATIVE_64
+    if (segadr == PC_GBI_STATIC_ADDRESS) segadr = this->gfx.words.native_address;
+    if (segadr > UINT32_MAX) return segadr;
+#endif
+    uintptr_t native = pc_gbi_unpack_runtime_ptr((unsigned int)segadr);
+    if (native != 0) return native;
+#ifndef PC_NATIVE_64
+    /* Preserve the ARM32 runtime pointer tag protocol. */
+    if ((segadr & 1) != 0) return segadr & ~(uintptr_t)1;
+#endif
+    if ((segadr >> 28) != 0 || segadr < 0x03000000) return segadr;
+    if (segadr >= pc_image_base && segadr < pc_image_end) return segadr;
 
-    /* Runtime GBI macros tag direct PC pointers in bit 0. Segment references
-       keep the low bit clear so they still resolve through the segment table. */
-    if ((segadr & 1) != 0) {
-        return segadr & ~1u;
-    }
-
-    /* Addresses above the N64 segment range (upper nibble != 0) or below
-       the minimum segment address are definitely raw PC pointers. */
-    if ((segadr >> 28) != 0 || segadr < 0x03000000) {
-        return segadr;
-    }
-
-    /* Check if address falls within the executable image (BSS/data/code). */
-    if (segadr >= pc_image_base && segadr < pc_image_end) {
-        return segadr;
-    }
-
-    u32 seg = (segadr >> 24) & 0xF;
-    u32 offset = segadr & 0xFFFFFF;
-
-    u32 base = this->segments[seg] & ~1u;
-
-    if (base == 0) {
-        return segadr;
-    }
-
-    /* Normal segment resolution path */
-    u32 resolved = base + offset;
+    u32 seg = (segadr >> 24) & 0xf;
+    u32 offset = segadr & 0xffffff;
+    uintptr_t base = this->segments[seg];
+#ifndef PC_NATIVE_64
+    base &= ~(uintptr_t)1;
+#endif
+    if (!base) return segadr;
     this->resolved_addresses++;
-    return resolved;
+    return base + offset;
 }
 #else
 u32 emu64::seg2k0(u32 segadr) {

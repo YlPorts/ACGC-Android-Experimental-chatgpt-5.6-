@@ -94,7 +94,7 @@ Vtx cal_nen_v[] = {
 #endif
 
 #ifdef TARGET_PC
-u8 cal_win_nen_before[0x28];
+u8 cal_win_nen_before[5 * sizeof(Gfx)] ATTRIBUTE_ALIGN(16);
 #else
 u8 cal_win_nen_before[] = {
 #include "assets/cal_win_nen_before.inc"

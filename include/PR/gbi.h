@@ -31,7 +31,7 @@
 #ifdef TARGET_PC
 #ifndef _GBI_RUNTIME_PTR_HELPERS
 #define _GBI_RUNTIME_PTR_HELPERS
-_GBI_STATIC_ASSERT(sizeof(void*) == sizeof(unsigned int), "GBI pointer packing requires 32-bit pointers");
+_GBI_STATIC_ASSERT(sizeof(u32) == 4, "GBI words must remain 32-bit");
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,7 +46,12 @@ uintptr_t pc_gbi_unpack_runtime_ptr(unsigned int packed);
 /* GCC GNU extension: pointer-to-integer cast in static initializers.
    Safe on 32-bit where sizeof(void*) == sizeof(unsigned int). */
 #ifndef _GBI_STATIC_PTR
+#ifdef PC_NATIVE_64
+#define PC_GBI_STATIC_ADDRESS 0xefffffffu
+#define _GBI_STATIC_PTR(s) PC_GBI_STATIC_ADDRESS, (uintptr_t)(s)
+#else
 #define _GBI_STATIC_PTR(s) (unsigned int)(uintptr_t)(s)
+#endif
 #endif
 /* Runtime display-list commands tag real PC pointers in bit 0. N64 segmented
    addresses are integer expressions and are left unchanged. */
@@ -1174,7 +1179,11 @@ typedef struct {
  * First 8 words are integer portion of the 4x4 matrix
  * Last 8 words are the fraction portion of the 4x4 matrix
  */
+#if defined(TARGET_PC) && __SIZEOF_LONG__ == 8
+typedef int32_t Mtx_t[4][4];
+#else
 typedef long	Mtx_t[4][4];
+#endif
 
 typedef union {
     Mtx_t		m;
@@ -1462,7 +1471,7 @@ typedef struct {
 
 typedef union {
     Hilite_t	h;
-    long int	force_structure_alignment[4];
+    s32		force_structure_alignment[4];
 } Hilite;
 
 #define gdSPDefLights0(ar,ag,ab)					\
@@ -1727,7 +1736,7 @@ typedef struct {
 		unsigned int	prim_min_level:8;
 		unsigned int	pad:8;
 		int		cmd:8;
-		unsigned long	color;
+		u32		color; /* second command word, including on LP64 hosts */
 } Gsetcolor;
 #else
 typedef struct {
@@ -1735,8 +1744,14 @@ typedef struct {
 		unsigned char	pad;
 		unsigned char	prim_min_level;
 		unsigned char	prim_level;
-		unsigned long	color;
+		u32		color;
 } Gsetcolor;
+#endif
+
+#ifdef TARGET_PC
+_GBI_STATIC_ASSERT(sizeof(Gsetcolor) == 8, "GBI color payload must remain two words");
+_GBI_STATIC_ASSERT(offsetof(Gsetcolor, color) == 4, "GBI color belongs to w1, not native relocation metadata");
+_GBI_STATIC_ASSERT(sizeof(Hilite) == 16, "GBI highlight data must remain four words");
 #endif
 
 #ifdef TARGET_PC
@@ -1874,10 +1889,10 @@ typedef struct {
  * Textured rectangles are 128 bits not 64 bits
  */	
 typedef struct {
-    unsigned long w0;
-    unsigned long w1;
-    unsigned long w2;
-    unsigned long w3;
+    u32 w0;
+    u32 w1;
+    u32 w2;
+    u32 w3;
 } TexRect;
 
 /*
@@ -1886,6 +1901,9 @@ typedef struct {
 typedef struct {
 	unsigned int w0;
 	unsigned int w1;
+#ifdef PC_NATIVE_64
+    uintptr_t native_address; /* relocation for compiled static lists */
+#endif
 } Gwords;
 
 /*
@@ -2118,6 +2136,17 @@ typedef union {
 	gDma1p((pkt), G_MOVEWORD, data, offset, index)
 #define gsMoveWd(    index, offset, data)				\
 	gsDma1p(      G_MOVEWORD, data, offset, index)
+#ifdef PC_NATIVE_64
+/* MOVEWORD shares the DMA opcode helper, but only SEGMENT carries an
+ * address. Light counts/colors, fog and clip values are immediate words. */
+#undef gsMoveWd
+#define gsMoveWd(index, offset, data) \
+{{ \
+    _SHIFTL(G_MOVEWORD, 24, 8) | _SHIFTL((index), 16, 8) | _SHIFTL((offset), 0, 16), \
+    (unsigned int)((index) == G_MW_SEGMENT ? PC_GBI_STATIC_ADDRESS : (uintptr_t)(data)), \
+    (index) == G_MW_SEGMENT ? (uintptr_t)(data) : 0 \
+}}
+#endif
 #else	/* F3DEX_GBI_2 */
 #define gMoveWd(pkt, index, offset, data)				\
 	gImmp21((pkt), G_MOVEWORD, offset, index, data)
@@ -3224,7 +3253,7 @@ typedef union {
 {{									\
 	_SHIFTL(cmd, 24, 8) | _SHIFTL(fmt, 21, 3) |			\
 	_SHIFTL(siz, 19, 2) | _SHIFTL((width)-1, 0, 12),		\
-	(unsigned int)(i)						\
+	_GBI_STATIC_PTR(i)						\
 }}
 
 #define	gDPSetColorImage(pkt, f, s, w, i)	gSetImage(pkt, G_SETCIMG, f, s, w, i)

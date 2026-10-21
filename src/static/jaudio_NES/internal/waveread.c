@@ -10,6 +10,14 @@
 static WaveArchiveBank_* wavearc[WAVEARC_SIZE];
 static CtrlGroup_* wavegroup[WAVEGROUP_SIZE];
 CtrlGroup_* CGRP_ARRAY[16];
+#ifdef PC_NATIVE_64
+#include "pc_bx.h"
+static PcBx* pc_wavegroups[WAVEGROUP_SIZE];
+static PcBx* pc_test_wsys;
+static u32 pc_wave_u32(const u8* p) {
+    return ((u32)p[0]<<24) | ((u32)p[1]<<16) | ((u32)p[2]<<8) | p[3];
+}
+#endif
 
 /*
  * --INFO--
@@ -17,6 +25,7 @@ CtrlGroup_* CGRP_ARRAY[16];
  * Size:	000038
  */
 
+#ifndef PC_NATIVE_64
 static void PTconvert(void** pointer, u32 base_address)
 {
 	if (*pointer == NULL) {
@@ -34,8 +43,16 @@ static void PTconvert(void** pointer, u32 base_address)
  * Address:	8000C240
  * Size:	0002A0
  */
+#endif
 CtrlGroup_* Wave_Test(u8* data)
 {
+#ifdef PC_NATIVE_64
+    PcBx* decoded=pc_bx_decode(data,pc_wave_u32(data+4),1);
+    if (!decoded) return NULL;
+    pc_bx_free(pc_test_wsys); pc_test_wsys=decoded;
+    CGRP_ARRAY[0]=pc_bx_wsys(decoded)->ctrlGroup;
+    return CGRP_ARRAY[0];
+#else
     u32 base_addr = (u32)data;
 	CtrlGroup_* group;
 	SCNE_* scene;
@@ -106,6 +123,7 @@ CtrlGroup_* Wave_Test(u8* data)
 		}
 	}
 	return CGRP_ARRAY[0];
+#endif
 }
 
 /*
@@ -125,10 +143,19 @@ void GetSound_Test(u32 id)
  */
 BOOL Wavegroup_Regist(void* wsysData, u32 id)
 {
-	Wsys_* wsys = (Wsys_*)wsysData;
-	Jac_WsConnectTableSet(wsys->globalID, id);
-	wavegroup[id] = Wave_Test((u8*)wsys);
-	wavearc[id]   = wsys->waveArcBank;
+    if (id >= WAVEGROUP_SIZE) return FALSE;
+#ifdef PC_NATIVE_64
+    PcBx* decoded=pc_bx_decode(wsysData,pc_wave_u32((u8*)wsysData+4),1);
+    if (!decoded) return FALSE;
+    pc_bx_free(pc_wavegroups[id]); pc_wavegroups[id]=decoded;
+    Wsys_* wsys=pc_bx_wsys(decoded);
+    wavegroup[id]=wsys->ctrlGroup;
+#else
+    Wsys_* wsys = (Wsys_*)wsysData;
+    wavegroup[id] = Wave_Test((u8*)wsys);
+#endif
+    Jac_WsConnectTableSet(wsys->globalID, id);
+    wavearc[id] = wsys->waveArcBank;
 
 	if (wavegroup[id] == NULL) {
 		return FALSE;
@@ -144,8 +171,15 @@ BOOL Wavegroup_Regist(void* wsysData, u32 id)
  */
 void Wavegroup_Init()
 {
+#ifdef PC_NATIVE_64
+    pc_bx_free(pc_test_wsys); pc_test_wsys=NULL;
+#endif
 	for (int i = 0; i < WAVEGROUP_SIZE; ++i) {
-		wavegroup[i] = NULL;
+#ifdef PC_NATIVE_64
+        pc_bx_free(pc_wavegroups[i]); pc_wavegroups[i]=NULL;
+#endif
+        wavearc[i]=NULL;
+        wavegroup[i] = NULL;
 	}
 }
 

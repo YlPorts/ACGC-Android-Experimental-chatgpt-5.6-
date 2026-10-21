@@ -30,10 +30,10 @@ void Add_PortcmdStay(void)
  * Address:	8000E340
  * Size:	000018
  */
-int Set_Portcmd(int* a1, int a2, int a3)
+int Set_Portcmd(int* a1, PortcmdCallback a2, int a3)
 {
 	// Is this a struct? I have no idea
-	a1[5] = a2;
+	a1[5] = (int)PC_PTR_REF(a2);
 	a1[6] = a3;
 	a1[3] = 0;
 	return 1;
@@ -54,14 +54,14 @@ BOOL Add_Portcmd(JPorthead_* port, u32* a2)
 	}
 
 	if (port->_04) {
-		((int*)port->_04)[4] = (int)a2;
+		PC_REF_PTR(u32*, port->_04)[4] = PC_PTR_REF(a2);
 	} else {
-		port->_00 = (int)a2;
+		port->_00 = PC_PTR_REF(a2);
 	}
 
-	port->_04 = (int)a2;
+	port->_04 = PC_PTR_REF(a2);
 	a2[4]     = 0;
-	a2[3]     = (int)port;
+	a2[3]     = PC_PTR_REF(port);
 	OSRestoreInterrupts(interrupt);
 	return TRUE;
 }
@@ -71,15 +71,15 @@ BOOL Add_Portcmd(JPorthead_* port, u32* a2)
  * Address:	8000E3E0
  * Size:	000040
  */
-static int Get_Portcmd(JPorthead_* port)
+static u32* Get_Portcmd(JPorthead_* port)
 {
-	u32 a = port->_00;
+	u32* a = PC_REF_PTR(u32*, port->_00);
 	if (a) {
-		port->_00 = ((int*)port->_00)[4];
+		port->_00 = a[4];
 		if (port->_00 == 0) {
 			port->_04 = 0;
 		}
-		((int*)a)[3] = 0;
+		a[3] = 0;
 	} else {
 		a = 0;
 	}
@@ -114,14 +114,14 @@ void Cancel_PortcmdStay(void)
  */
 int Jac_Portcmd_Proc_Once(JPorthead_* port)
 {
-	u32 p;
+	u32* p;
 	while (1) {
 		p = Get_Portcmd(port);
 		if (!p) {
 			break;
 		}
 		// Ckit ahh moment unless someone figures out what type Get_Portcmd actually returns
-		((int (*)(int)) * (int*)(p + 0x14))(((int*)p)[6]);
+		PC_REF_PTR(PortcmdCallback, p[5])((int)p[6]);
 	}
 	return 0;
 }
@@ -133,14 +133,14 @@ int Jac_Portcmd_Proc_Once(JPorthead_* port)
  */
 int Jac_Portcmd_Proc_Stay(JPorthead_* port)
 {
-	u32 p = port->_00;
+	u32* p = PC_REF_PTR(u32*, port->_00);
 	while (1) {
 		if (!p) {
 			break;
 		}
-		((int (*)(int)) * (int*)(p + 0x14))(((int*)p)[6]);
+		PC_REF_PTR(PortcmdCallback, p[5])((int)p[6]);
 
-		p = ((u32*)p)[4];
+		p = PC_REF_PTR(u32*, p[4]);
 	}
 	return 0;
 }

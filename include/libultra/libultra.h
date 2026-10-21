@@ -34,8 +34,16 @@ typedef u64 Z_OSTime;
 #endif
 #endif
 
+#ifdef TARGET_PC
+int bcmp(const void* v1, const void* v2, size_t size);
+#else
 int bcmp(void* v1, void* v2, u32 size);
+#endif
+#ifdef TARGET_PC
+void bcopy(const void* src, void* dst, size_t n);
+#else
 void bcopy(void* src, void* dst, size_t n);
+#endif
 void bzero(void* ptr, size_t size);
 void osSyncPrintf(const char* fmt, ...);
 void osWritebackDCache(void* vaddr, u32 nbytes);

@@ -854,7 +854,7 @@ static int CommonCallbackLogicalChannel(dspch_* ch, u32 a)
 			jc->toFlush = 1;
 		}
 
-		if (jc->pitchSweepUpdater && (u32)jc->pitchSweepUpdater(jc, JCSTAT_Unk0) == TRUE) {
+		if (jc->pitchSweepUpdater && jc->pitchSweepUpdater(jc, JCSTAT_Unk0) == TRUE) {
 			jc->toFlush++;
 		}
 
@@ -896,7 +896,7 @@ BOOL StopLogicalChannel(jc_* jc)
 	jc->dspChannel->_06 = 0;
 	DSP_PlayStop(jc->dspChannel->buffer_idx);
 	DSP_FlushChannel(jc->dspChannel->buffer_idx);
-	DeAllocDSPchannel(jc->dspChannel, (u32)jc);
+	DeAllocDSPchannel(jc->dspChannel, PC_PTR_REF(jc));
 	jc->dspChannel = NULL;
 	return TRUE;
 }
@@ -1043,7 +1043,7 @@ void __Entry_WaitChannel(u8 a)
 	while (cur_waits != 0) {
 		jc = waitp[cur_top];
 		if (jc) {
-			ch = AllocDSPchannel(0, (u32)jc);
+			ch = AllocDSPchannel(0, PC_PTR_REF(jc));
 			if (ch == NULL) {
 				break;
 			}

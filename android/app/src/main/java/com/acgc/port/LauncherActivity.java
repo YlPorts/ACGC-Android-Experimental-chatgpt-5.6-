@@ -30,7 +30,11 @@ public final class LauncherActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         buildUi();
-        handleIntent(getIntent(), state == null);
+        setBusy(true, "Comprobando el inicio anterior…");
+        CrashReports.checkPreviousExit(this, () -> {
+            setBusy(false, "");
+            handleIntent(getIntent(), state == null);
+        });
     }
 
     @Override
@@ -135,6 +139,17 @@ public final class LauncherActivity extends Activity {
         startActivityForResult(
                 GameFolderManager.createFolderPickerIntent(current),
                 GameFolderManager.TREE_REQUEST_CODE);
+    }
+
+    void showRetryAfterCrash(Runnable retry) {
+        updateIdleText("Informe copiado. Puedes volver al chat o reintentar el juego.");
+        selectFolderButton.setVisibility(View.VISIBLE);
+        selectFolderButton.setText("Reintentar juego");
+        selectFolderButton.setOnClickListener(view -> {
+            selectFolderButton.setText("Seleccionar carpeta");
+            selectFolderButton.setOnClickListener(button -> openFolderPicker());
+            retry.run();
+        });
     }
 
     @Override

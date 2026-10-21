@@ -1,3 +1,4 @@
+#include "libultra/osMesg.h"
 #include "libc64/sleep.h"
 #include "libultra/os_timer.h"
 #include "dolphin/os/OSAlarm.h"

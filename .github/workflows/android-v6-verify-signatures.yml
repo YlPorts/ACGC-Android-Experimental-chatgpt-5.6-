@@ -1,0 +1,132 @@
+name: Verify externally signed V6 candidates
+
+on:
+  workflow_call:
+    inputs:
+      build_run_id:
+        type: string
+        required: true
+      release_tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful V6 build containing the unsigned inputs
+        type: string
+        required: true
+      release_tag:
+        description: Published experimental candidate tag (v6.0-rcN)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  provenance:
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.check.outputs.source_sha }}
+    steps:
+      - id: check
+        name: Require a successful own-repository V6 build and matching prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          def gh(*args):
+              return json.loads(subprocess.check_output(['gh', *args], text=True))
+          repo = os.environ['GH_REPO']
+          run_id, tag = os.environ['BUILD_RUN_ID'], os.environ['RELEASE_TAG']
+          assert run_id.isdecimal() and re.fullmatch(r'v6\.0-rc[0-9]+', tag)
+          run = gh('api', f'repos/{repo}/actions/runs/{run_id}')
+          assert run['status'] == 'completed' and run['conclusion'] == 'success'
+          # PR checkout may be a merge ref, rather than this exact head commit.
+          assert run['event'] in ('push', 'workflow_dispatch')
+          assert run['head_repository']['full_name'] == repo
+          assert run['head_branch'] == 'android-v6-arm64'
+          assert run['path'] == '.github/workflows/android-v6.yml'
+          release = gh('release', 'view', tag, '--repo', repo, '--json', 'isDraft,isPrerelease')
+          assert release['isPrerelease'] and not release['isDraft']
+          ref = gh('api', f'repos/{repo}/git/ref/tags/{tag}')['object']
+          assert ref['type'] == 'commit' and ref['sha'] == run['head_sha']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('source_sha=' + run['head_sha'] + '\n')
+          PY
+
+  signed-apk:
+    needs: provenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {flavor: universal, label: Universal}
+          - {flavor: arm64, label: ARM64}
+          - {flavor: arm32, label: ARM32}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.provenance.outputs.source_sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install signature and alignment tools
+        run: sdkmanager 'build-tools;35.0.0'
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run_id }}
+          name: V6-unsigned-${{ matrix.label }}-build
+          path: build-input
+      - name: Download the public signed candidate and verify unchanged payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          FLAVOR: ${{ matrix.flavor }}
+          LABEL: ${{ matrix.label }}
+        run: |
+          APK="Animal-Crossing-Android-V6.0-$LABEL.apk"
+          gh release view "$RELEASE_TAG" --repo "$GH_REPO" --json assets > release-assets.json
+          HAS_ASSET=$(APK_NAME="$APK" python3 -c 'import json,os; print("yes" if any(a["name"] == os.environ["APK_NAME"] for a in json.load(open("release-assets.json"))["assets"]) else "no")')
+          if [ "$HAS_ASSET" = yes ]; then
+            gh release download "$RELEASE_TAG" --repo "$GH_REPO" --pattern "$APK" --dir dist
+          else
+            # The managed integration may allow Git writes but reject uploads.github.com.
+            # A separate public artifact tag carries the same signed bytes; the
+            # certificate and full payload comparison below remain mandatory.
+            git fetch --no-tags --depth=1 origin "refs/tags/$RELEASE_TAG-apks"
+            mkdir -p dist
+            git show "FETCH_HEAD:$APK" > "dist/$APK"
+            echo "Signed files downloaded from artifact tag $RELEASE_TAG-apks." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          case "$FLAVOR" in
+            universal) ABIS=(--abi armeabi-v7a --abi arm64-v8a) ;;
+            arm64) ABIS=(--abi arm64-v8a) ;;
+            arm32) ABIS=(--abi armeabi-v7a) ;;
+          esac
+          python3 tools/validation/check_signed_payload.py "dist/$APK" \
+            --unsigned "build-input/Animal-Crossing-Android-V6.0-$LABEL-unsigned.apk" \
+            --build-report "build-input/apk-$FLAVOR.json" "${ABIS[@]}" \
+            --build-run-id "$BUILD_RUN_ID" --build-tools "$ANDROID_HOME/build-tools/35.0.0" \
+            --certificate-sha256 265e4f32ba1e44b346e8361941a3e0f02f3549ea5e6d9bbecf29f6ccebdaeccc \
+            --output "dist/apk-signed-$FLAVOR.json"
+          echo 'Signature and unchanged CI payload verified. Device gameplay acceptance remains pending.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Animal-Crossing-Android-V6.0-${{ matrix.label }}
+          path: dist/*
+          if-no-files-found: error

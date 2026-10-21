@@ -252,9 +252,9 @@ static int Player_actor_CatchSomethingCheck_common(ACTOR* actor, f32 frame) {
                 player->item_net_catch_type = type;
 
                 if (type == 0 && label != 0) {
-                    player->item_net_catch_insect_idx = ((aINS_INSECT_ACTOR*)label)->type;
+                    player->item_net_catch_insect_idx = (PC_REF_PTR(aINS_INSECT_ACTOR*, label))->type;
                 } else if (label != 0) {
-                    if (((ACTOR*)label)->id == mAc_PROFILE_BEE) {
+                    if ((PC_REF_PTR(ACTOR*, label))->id == mAc_PROFILE_BEE) {
                         player->item_net_catch_insect_idx = aINS_INSECT_TYPE_BEE;
                     } else {
                         player->item_net_catch_insect_idx = aINS_INSECT_TYPE_ANT;
@@ -284,7 +284,7 @@ static void Player_actor_CorrectSomething_Swing_net(ACTOR* actor) {
     u32 label = player->item_net_catch_label;
 
     if (label != 0 && player->item_net_catch_type == 0) {
-        ((ACTOR*)label)->drawn = FALSE;
+        (PC_REF_PTR(ACTOR*, label))->drawn = FALSE;
     }
 
     Player_actor_CorrectSomething_net(actor, pos);
@@ -357,5 +357,5 @@ static void Player_actor_main_Swing_net(ACTOR* actor, GAME* game) {
     Player_actor_ObjCheck_Swing_net(actor, game);
     Player_actor_BGcheck_Swing_net(actor);
     Player_actor_Item_main(actor, game);
-    Player_actor_request_proc_index_fromSwing_net(actor, game, end_flag, hit_check, check_type, (ACTOR*)label);
+    Player_actor_request_proc_index_fromSwing_net(actor, game, end_flag, hit_check, check_type, PC_REF_PTR(ACTOR*, label));
 }

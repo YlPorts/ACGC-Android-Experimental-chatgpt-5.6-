@@ -4,10 +4,16 @@ plugins {
 
 def stableKeystorePath = System.getenv("ACGC_KEYSTORE_PATH")
 def stableKeystorePassword = System.getenv("ACGC_KEYSTORE_PASSWORD")
+def unsignedBuild = System.getenv("ACGC_UNSIGNED_BUILD") == "1"
+
+if (unsignedBuild && (stableKeystorePath || stableKeystorePassword)) {
+    throw new GradleException("Unsigned builds must not receive signing credentials")
+}
 
 android {
     namespace "com.acgc.port"
-    compileSdk 34
+    compileSdk 35
+    ndkVersion "28.2.13676358"
 
     signingConfigs {
         stable {
@@ -25,25 +31,50 @@ android {
         applicationId "com.acgc.port"
         minSdk 23
         targetSdk 34
-        versionCode 5
-        versionName "5.0-pc0.9.3"
+        versionCode 10
+        versionName "6.0-rc5-pc0.9.3"
 
         externalNativeBuild {
             cmake {
-                arguments "-DANDROID_STL=c++_shared"
-                abiFilters "armeabi-v7a"
+                arguments "-DANDROID_STL=c++_shared", "-DACGC_EXPERIMENTAL_ARM64=ON"
             }
         }
+    }
+
+    flavorDimensions += "architecture"
+    productFlavors {
+        universal {
+            dimension "architecture"
+            ndk { abiFilters "armeabi-v7a", "arm64-v8a" }
+        }
+        arm64 {
+            dimension "architecture"
+            ndk { abiFilters "arm64-v8a" }
+        }
+        arm32 {
+            dimension "architecture"
+            ndk { abiFilters "armeabi-v7a" }
+        }
+    }
+
+    packaging {
+        // SDL's existing loader uses extracted libraries (manifest setting).
+        jniLibs { useLegacyPackaging = true }
     }
 
     buildTypes {
         debug {
             debuggable true
-            if (stableKeystorePath && stableKeystorePassword) {
+            if (unsignedBuild) {
+                signingConfig null
+            } else if (stableKeystorePath && stableKeystorePassword) {
                 signingConfig signingConfigs.stable
             }
         }
         release {
+            if (stableKeystorePath && stableKeystorePassword) {
+                signingConfig signingConfigs.stable
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
@@ -59,6 +90,7 @@ android {
     externalNativeBuild {
         cmake {
             path file("CMakeLists.txt")
+            version "3.22.1"
         }
     }
 

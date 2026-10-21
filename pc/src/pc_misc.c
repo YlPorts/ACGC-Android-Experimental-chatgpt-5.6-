@@ -159,7 +159,7 @@ BOOL OSUnlink(void* info) { (void)info; return TRUE; }
 #endif
 #endif
 void bzero(void* s, size_t n) { memset(s, 0, n); }
-void bcopy(void* src, void* dst, size_t n) { memmove(dst, src, n); }
+void bcopy(const void* src, void* dst, size_t n) { memmove(dst, src, n); }
 #endif
 
 u8 GXNtsc480IntDf[64] = {0};
