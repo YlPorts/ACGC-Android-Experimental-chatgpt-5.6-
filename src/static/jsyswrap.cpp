@@ -1,6 +1,7 @@
 #include "jsyswrap_cpp.h"
 
 #include "JSystem/JSystem.h"
+#include "JSystem/JFramework/JFWSystem.h"
 #include "JSystem/JUtility/JUTGamePad.h"
 #include "JSystem/JUtility/TColor.h"
 #include "libforest/emu64.h"
@@ -501,10 +502,15 @@ extern void JW_Init() {
     const u32 soundAramSize = 0x810000;
     const u32 graphAramSize = 0x6A3780;
 
+#ifdef PC_NATIVE_64
+    // Determine capacity after root creation: native headers and alignment grow
+    // on LP64. The ARM32 arena budget remains unchanged.
+    SystemHeapSize = JFWSystem::SYS_HEAP_SIZE_AVAILABLE;
+#else
     void* arena_hi = OSGetArenaHi();
     void* arena_lo = OSGetArenaLo();
-
     SystemHeapSize = (u32)((u8*)arena_hi - (u8*)arena_lo) - 0xD0;
+#endif
     JC_JFWSystem_setMaxStdHeap(1);
     JC_JFWSystem_setSysHeapSize(SystemHeapSize);
     JC_JFWSystem_setFifoBufSize(0x10001);

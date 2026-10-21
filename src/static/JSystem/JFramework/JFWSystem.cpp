@@ -83,8 +83,10 @@ void _pc_load_JUTResFONT_Ascfont_fix12(void) {
 }
 #endif /* TARGET_PC */
 
+#ifndef TARGET_PC
 int JFWSystem::CSetUpParam::maxStdHeaps = 2;
 u32 JFWSystem::CSetUpParam::sysHeapSize = 0x400000;
+#endif
 u32 JFWSystem::CSetUpParam::fifoBufSize = 0x40000;
 u32 JFWSystem::CSetUpParam::aramAudioBufSize = 0x800000;
 u32 JFWSystem::CSetUpParam::aramGraphBufSize = 0x600000;
@@ -97,10 +99,14 @@ const ResFONT* JFWSystem::CSetUpParam::systemFontRes = (const ResFONT*)JUTResFON
 const ResFONT* JFWSystem::CSetUpParam::systemFontRes = &JUTResFONT_Ascfont_fix12;
 #endif
 const _GXRenderModeObj* JFWSystem::CSetUpParam::renderMode = &GXNtsc480IntDf;
+#ifndef TARGET_PC
 u32 JFWSystem::CSetUpParam::exConsoleBufferSize = 0x24F8;
+#endif
 
+#ifndef TARGET_PC
 JKRHeap* JFWSystem::rootHeap;
 JKRHeap* JFWSystem::systemHeap;
+#endif
 JKRThread* JFWSystem::mainThread;
 JUTDbPrint* JFWSystem::debugPrint;
 JUTFont* JFWSystem::systemFont;
@@ -108,6 +114,7 @@ JUTConsoleManager* JFWSystem::systemConsoleManager;
 JUTConsole* JFWSystem::systemConsole;
 bool JFWSystem::sInitCalled;
 
+#ifndef TARGET_PC
 void JFWSystem::firstInit() {
     JUT_ASSERT(rootHeap == 0);
     OSInit();
@@ -115,6 +122,7 @@ void JFWSystem::firstInit() {
     rootHeap = JKRExpHeap::createRoot(CSetUpParam::maxStdHeaps, false);
     systemHeap = JKRExpHeap::create(CSetUpParam::sysHeapSize, rootHeap, false);
 }
+#endif
 
 void JFWSystem::init() {
     JUT_ASSERT(sInitCalled == false);

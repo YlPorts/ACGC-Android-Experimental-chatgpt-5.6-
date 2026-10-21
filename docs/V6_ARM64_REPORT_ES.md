@@ -1,4 +1,4 @@
-# Animal Crossing Android V6.0 RC3 — estado técnico
+# Animal Crossing Android V6.0 RC4 — estado técnico
 
 Esta rama contiene una implementación nativa ARM64 y conserva la compilación
 ARM32 sobre V5 / PC 0.9.3. Es una **candidata de desarrollo**, no una versión
@@ -7,6 +7,49 @@ estable ni una afirmación de que se haya jugado en Android.
 Base: `d717e971bb684a36549ac9b2d7d3879a3a296fc5` de `master`.
 SDL2: 2.30.11, submódulo `fa24d868ac2f8fd558e4e914c9863411245db8fd`.
 La inspección anterior a las modificaciones está en [la auditoría inicial](V6_ARM64_AUDIT_ES.md).
+
+## Cierre ARM64 de RC3: heap del sistema nulo
+
+El informe real del Galaxy A15 / Android 16 recibido el 21 de octubre identifica
+`libmain.so` con Build ID `be0ff288c730a27552c091ba995df40e54a50f33`.
+Coincide exactamente con los símbolos DWARF conservados por la compilación CI
+RC3 `39551447727`; los símbolos locales de otra compilación no se usan.
+`0x988e4c` corresponde a `JKRHeap::alloc`, cuya primera instrucción lee `[x0]`.
+`0x97e934` corresponde a la reserva de la consola en `JFWSystem::init`.
+La dirección de fallo cero identifica el objeto `systemHeap` nulo.
+
+La causa se reproduce con el backend OS y las clases JKR de producción:
+`JW_Init` restaba `0xD0` a la arena, una suposición de tamaño de ARM32.
+En AArch64 el objeto `JKRExpHeap` mide 256 bytes y su bloque 32 bytes; la
+reserva excede la capacidad del heap raíz y `create` devuelve nulo. En una
+reproducción ARM64 solicita 25153072 bytes y dispone de 25152928 (exceso de
+144). La misma reproducción ARM32, con objeto de 136 bytes y bloque de 16,
+crea correctamente los heaps y pasa la reserva de consola/juego.
+
+RC4 selecciona en ARM64 una política explícita de capacidad disponible.
+`firstInit` calcula esa capacidad **después** de `OSInitAlloc`, el redondeo de la
+arena y la construcción del heap raíz. Usa su espacio real, alineado a 16 bytes,
+para crear el heap hijo. ARM32 mantiene su cálculo anterior; los llamadores que
+piden un tamaño explícito (por ejemplo, 4 MiB) conservan ese tamaño. Una reserva
+fallida informa del tamaño solicitado/disponible y detiene el arranque antes de
+usar un objeto nulo; esta comprobación no sustituye la corrección del cálculo.
+
+El arranque de heaps del backend PC se separa en `pc_jsystem_heap.cpp` para
+probarlo sin GPU, ISO ni reemplazar asignadores, constructores o métodos por
+stubs. Se conserva la implementación de GameCube para su compilación original.
+`heap_boot_test` recorre OSInit → firstInit → createRoot/create, reserva el
+búfer de excepción, crea un heap de juego de 0x380000 bytes, escribe/lee memoria
+y libera recursos. Comprueba integridad y recuperación del espacio. Se ejecuta
+con política del arranque, presupuesto explícito y límites de arena desplazados
+16 bytes para comprobar también el redondeo del OS en ARM64. Pasan host ASan/UBSan,
+ARM32 y AArch64. La prueba anterior de heap empezaba con un constructor por
+placement y no cubría la creación inicial: por eso no detectaba este fallo.
+
+La copia del informe nativo ya se ha utilizado en el teléfono del usuario.
+Esto confirma esa ruta de diagnóstico en ese dispositivo; no acredita el
+arranque ni la partida de RC4. Las tres variantes RC4 requieren confirmación
+física; no se declaran estables. Se usa la misma firma V6, `versionCode=9` y
+`versionName=6.0-rc4-pc0.9.3`, para actualizar sin desinstalar ni borrar datos.
 
 ## Corrección del cierre al iniciar en RC1
 
@@ -31,8 +74,8 @@ MRAM/ARAM, estados/callbacks, la barrera de finalización y archivo ausente.
 Antes de la corrección falla en la escritura nula; después comprueba los bytes
 transferidos. Esto no equivale a haber arrancado una partida Android.
 
-La candidata actual usa `versionCode=8`, `versionName=6.0-rc3-pc0.9.3` y el mismo
-certificado V6. Puede reemplazar RC1/RC2 firmadas con ese certificado sin desinstalar
+La candidata actual usa `versionCode=9`, `versionName=6.0-rc4-pc0.9.3` y el mismo
+certificado V6. Puede reemplazar RC1/RC2/RC3 firmadas con ese certificado sin desinstalar
 ni borrar datos. Las etiquetas RC1 permanecen inmutables para diagnóstico.
 
 ## Fallo ARM64 pendiente en RC2 y correcciones de RC3
@@ -87,7 +130,7 @@ pila y Build IDs con límites de tamaño. Omite dumps de memoria y no transmite
 datos a ninguna red. El texto se guarda en `files/last-crash.txt`; el informe
 indica la versión instalada, fecha del cierre y última etapa disponible, que
 puede pertenecer a un intento anterior. Android puede haber descartado la traza;
-en ese caso se indica expresamente. Esta interfaz requiere prueba en dispositivo.
+en ese caso se indica expresamente. El informe recibido confirma esta ruta en el Galaxy A15; falta repetirla en otros dispositivos/versiones.
 
 CI ejecuta pruebas del lector Java (direcciones ARM64, ARM32, orden de campos,
 campos desconocidos y entradas truncadas/inválidas). También conserva símbolos
@@ -173,15 +216,15 @@ instalar; no se afirma que se carguen directamente desde el ZIP.
 | Paquete completo | Verificado | Todas las `.so`, ABI, dependencias, JNI, firma y zipalign |
 | Layout persistente V5 | 98/98 en ambas ABI | Comparación con baseline ARM32 intacta |
 | Serializador de partidas | Ida/vuelta cruzada ARM32 ↔ AArch64 | Payload válido sintético de 148128 bytes |
-| Pruebas de componentes | 17 casos en host/ARM32/AArch64 | ASan/UBSan en host; ejecutables ARM bajo QEMU |
-| Informe de cierre | Lector Java probado y aplicación compilada | Historial Android/UI pendientes en dispositivo |
+| Pruebas de componentes | 18 casos en host/ARM32/AArch64 | ASan/UBSan en host; ejecutables ARM bajo QEMU |
+| Informe de cierre | Lector Java probado; informe RC3 obtenido por el usuario | Pila y Build ID exactos en Galaxy A15/Android 16 |
 | Workflow | actionlint correcto | Además de compilación/configuración Gradle local |
 
-Los diecisiete casos cubren referencias concurrentes con direcciones superiores a 4 GB,
+Los dieciocho casos cubren referencias concurrentes con direcciones superiores a 4 GB,
 GBI estático/dinámico/binario, ARAM y callbacks, contratos OS, lector DVD real y carga del audio de arranque, comandos de escenas, Multi5 y
 SafeBoot con packs sintéticos, bancos NEOS, IBNK/WSYS originales incluidos en el
 código, traducción de direcciones DOL, colas y copia DSP, NES, serializador y
-entradas RARC y asignación/redimensionado/liberación real del heap con tamaños y alineaciones variados. La prueba NES ejecuta el **wrapper de producción**
+entradas RARC, arranque OS/heap raíz/sistema/juego y asignación/redimensionado/liberación real del heap con tamaños y alineaciones variados. La prueba NES ejecuta el **wrapper de producción**
 y su CPU/PPU/APU con una ROM NROM escrita para la prueba: comprueba cálculo,
 controlador, WRAM, generación de framebuffer y entrega de audio con su puntero
 completo. El test no invoca el render GLES; proporciona un adaptador para la restauración

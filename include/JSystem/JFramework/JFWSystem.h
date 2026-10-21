@@ -12,6 +12,9 @@
 
 // Maybe these are namespaces?
 struct JFWSystem {
+    // Runtime policy: use the root heap's remaining capacity after OS/heap headers.
+    static const u32 SYS_HEAP_SIZE_AVAILABLE = 0xffffffffu;
+
     struct CSetUpParam {
         static int maxStdHeaps;
         static u32 sysHeapSize;

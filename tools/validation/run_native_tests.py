@@ -101,6 +101,22 @@ def main():
     run(runner + [executable])
     results.append({"test": "heap", "passed": True})
     print(f"PASS {bits}-bit heap allocation/resize/free stress", flush=True)
+    executable = out / "heap_boot_test"
+    boot_objects = []
+    for name in ("pc_os", "pc_dvd"):
+        obj = out / (name + "-heap-boot.o")
+        run(cc + ["-std=gnu11"] + flags + ["-ffunction-sections", "-fdata-sections",
+            "-c", f"pc/src/{name}.c", "-o", obj])
+        boot_objects.append(obj)
+    run(cxx + ["-std=c++17"] + flags + ["-ffunction-sections", "-fdata-sections",
+        "tests/native/heap_boot_test.cpp", "pc/src/pc_jsystem_heap.cpp"]
+        + sources + boot_objects + ["-Wl,--gc-sections", "-o", executable])
+    run(runner + [executable])
+    run(runner + [executable, "--fixed-budget"])
+    if bits == 64:
+        run(runner + [executable, "--offset-arena"])
+    results.append({"test": "heap_boot", "passed": True})
+    print(f"PASS {bits}-bit production arena/root/system/game heap startup", flush=True)
     report = {"bits": bits, "compiler": args.cc, "runner": args.runner or "host",
               "sanitizers": args.sanitize, "gameplay_tested": False, "tests": results}
     (out / "results.json").write_text(json.dumps(report, indent=2) + "\n")

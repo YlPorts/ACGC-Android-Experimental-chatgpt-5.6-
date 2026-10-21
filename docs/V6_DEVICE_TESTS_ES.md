@@ -11,27 +11,29 @@ ARAM nula y la copia parcial de una tarea DVD en ARM64. La nueva prueba de esta
 ruta usa fuentes de producción con disco sintético; la prueba de arranque en
 el teléfono con RC2 sigue pendiente y debe registrarse expresamente.
 
-**Resultado comunicado por el usuario:** ARM32 RC2 funciona; ARM64 y universal
-RC2 se cierran al iniciar. No considerar esas dos variantes aprobadas. RC3
-corrige los contratos nativos OS/DVD reproducidos en las pruebas; falta confirmar
-el arranque corregido y el resto del protocolo en el dispositivo.
+**Resultados comunicados por el usuario:** ARM32 RC2 funciona; ARM64 y universal
+RC2 se cierran al iniciar. El informe real de RC3 en Galaxy A15/Android 16
+confirma `SIGSEGV` al usar un heap del sistema nulo. Su Build ID coincide con los
+símbolos exactos de CI. RC4 corrige el cálculo de capacidad que hacía fallar su
+creación en ARM64; se ha reproducido con las clases JKR y el OS reales y pasa
+la prueba de arranque de heaps en ambas ABI. Aún falta confirmar el arranque y
+la partida de RC4 en el dispositivo. No considerar ARM64/universal aprobadas.
 
-Al abrir RC3 después de un cierre, Android 11+ puede mostrar «El juego se cerró
-en el intento anterior». Elegir **Copiar informe** y pegar el texto para revisar
-señal, pila y Build ID. El botón **Reintentar juego** permite continuar después.
-No se necesita un PC ni borrar datos. Si vuelve a cerrarse, reabrir la app y
-copiar el informe nuevo. Una traza que Android ya haya descartado no puede
-recuperarse; en ese caso obtener `adb logcat -b crash -d`. La lectura del informe
-y su interacción todavía no se han ejecutado físicamente en este entorno.
+Al abrir la app después de un cierre, Android 11+ puede mostrar «El juego se
+cerró en el intento anterior». Elegir **Copiar informe** y pegar el texto para
+revisar señal, pila y Build ID. El botón **Reintentar juego** permite continuar.
+Esta ruta ha proporcionado el informe RC3 del usuario; otros Android/dispositivos
+siguen pendientes. No se necesita un PC ni borrar datos. Una traza descartada
+por Android no puede recuperarse; en ese caso obtener `adb logcat -b crash -d`.
 
-Para actualizar RC1/RC2 a RC3, instalar la APK sobre la anterior sin desinstalar,
-borrar datos ni cambiar la carpeta de juego. Ambas usan el mismo certificado
-V6; RC3 tiene `versionCode=8`. Comprobarlo con `apksigner verify --print-certs`
-y `aapt dump badging` antes de la prueba. Un error de certificado no se resuelve
-borrando el pueblo. Si persiste un cierre, conservar `adb logcat -b crash -d`,
-`adb logcat -d` y `save/startup-stage.txt` del almacenamiento privado. Estas APK
-son depurables: se puede extraer esa etapa con
-`adb exec-out run-as com.acgc.port cat files/save/startup-stage.txt`.
+Para actualizar RC1/RC2/RC3 a RC4, instalar la APK sobre la anterior sin
+desinstalar, borrar datos ni cambiar la carpeta del juego. Todas usan el mismo
+certificado V6; RC4 tiene `versionCode=9`. Comprobarlo con
+`apksigner verify --print-certs` y `aapt dump badging` antes de la prueba. Un
+error de certificado no se resuelve borrando el pueblo. Si persiste un cierre,
+conservar `adb logcat -b crash -d`, `adb logcat -d` y `save/startup-stage.txt`
+del almacenamiento privado. Estas APK son depurables: se puede extraer la etapa
+con `adb exec-out run-as com.acgc.port cat files/save/startup-stage.txt`.
 
 1. Conservar y verificar una copia de la carpeta de juego y del pueblo V4/V5.
    Comparar certificados: usar `adb install -r <apk>` sólo si coinciden. Las
