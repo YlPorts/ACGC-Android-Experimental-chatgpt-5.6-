@@ -98,6 +98,12 @@ confunden con las candidatas firmadas en el entorno local. Una configuración de
 secretos incompleta falla. No se generan claves temporales por variante ni se
 publica material privado de firma.
 
+Para una clave mantenida fuera de GitHub, el workflow manual
+`Verify externally signed V6 candidates` compara las APK de una prerelease
+`v6.0-rcN` con los inputs de una ejecución V6 correcta del mismo commit. Verifica
+que sólo se añadieron firmas, exige el certificado V6 y sube las tres candidatas
+como artifacts. No recibe claves privadas ni permite cambiar el código compilado.
+
 Las pruebas QEMU son ejecutables Linux de componentes; los APK usan código NDK
 nativo de cada ABI. No se dispone de teléfono, GPU Mali, imagen de juego, pueblos
 V4/V5 ni packs externos completos para verificar una partida o medir rendimiento.

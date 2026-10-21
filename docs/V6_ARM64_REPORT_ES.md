@@ -154,6 +154,18 @@ workflow. Con ambos secretos, CI firma y verifica los tres productos normales.
 Una compilación local ordinaria sin variables usa el certificado de desarrollo;
 `ACGC_UNSIGNED_BUILD=1` solicita explícitamente el modo sin firma.
 
+Cuando no se pueden configurar secretos, el workflow manual
+`Verify externally signed V6 candidates` permite verificar una firma efectuada
+fuera de Actions sin transferir la clave privada. Requiere una ejecución V6
+correcta y una prerelease `v6.0-rcN` cuyo tag apunte al mismo commit. Descarga los
+inputs de esa ejecución y las APK firmadas, compara todos los archivos de la
+aplicación byte a byte (sólo permite añadir metadatos de firma), exige el
+certificado V6 anterior y comprueba firma/zipalign. Sólo entonces sube los tres
+artifacts con sus nombres normales. Este paso no convierte la candidata en
+estable ni sustituye las pruebas de dispositivo. La comparación se ha probado
+localmente con un input real de Actions y rechaza cambios de `classes.dex` o un
+certificado distinto.
+
 Productos de la candidata firmada:
 
 - `Animal-Crossing-Android-V6.0-Universal.apk`
