@@ -105,6 +105,9 @@ que sólo se añadieron firmas, exige el certificado V6 y sube las tres candidat
 como artifacts. No recibe claves privadas ni permite cambiar el código compilado.
 Puede iniciarse desde el workflow principal con los inputs manuales
 `signed_build_run_id` y `signed_release_tag`. Dejarlos vacíos compila normalmente.
+Si la integración rechaza la subida de assets, los archivos firmados pueden
+publicarse desde una rama separada con etiqueta `v6.0-rcN-apks`; la prerelease
+enlaza las descargas y Actions exige la misma firma y contenido CI exacto.
 
 Las pruebas QEMU son ejecutables Linux de componentes; los APK usan código NDK
 nativo de cada ABI. No se dispone de teléfono, GPU Mali, imagen de juego, pueblos

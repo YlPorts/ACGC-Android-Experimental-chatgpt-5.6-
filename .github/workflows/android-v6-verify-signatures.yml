@@ -100,7 +100,19 @@ jobs:
           LABEL: ${{ matrix.label }}
         run: |
           APK="Animal-Crossing-Android-V6.0-$LABEL.apk"
-          gh release download "$RELEASE_TAG" --repo "$GH_REPO" --pattern "$APK" --dir dist
+          gh release view "$RELEASE_TAG" --repo "$GH_REPO" --json assets > release-assets.json
+          HAS_ASSET=$(APK_NAME="$APK" python3 -c 'import json,os; print("yes" if any(a["name"] == os.environ["APK_NAME"] for a in json.load(open("release-assets.json"))["assets"]) else "no")')
+          if [ "$HAS_ASSET" = yes ]; then
+            gh release download "$RELEASE_TAG" --repo "$GH_REPO" --pattern "$APK" --dir dist
+          else
+            # The managed integration may allow Git writes but reject uploads.github.com.
+            # A separate public artifact tag carries the same signed bytes; the
+            # certificate and full payload comparison below remain mandatory.
+            git fetch --no-tags --depth=1 origin "refs/tags/$RELEASE_TAG-apks"
+            mkdir -p dist
+            git show "FETCH_HEAD:$APK" > "dist/$APK"
+            echo "Signed files downloaded from artifact tag $RELEASE_TAG-apks." >> "$GITHUB_STEP_SUMMARY"
+          fi
           case "$FLAVOR" in
             universal) ABIS=(--abi armeabi-v7a --abi arm64-v8a) ;;
             arm64) ABIS=(--abi arm64-v8a) ;;

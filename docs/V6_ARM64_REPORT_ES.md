@@ -169,6 +169,14 @@ Se puede iniciar desde el workflow principal ya registrado, pasando los inputs
 manuales `signed_build_run_id` y `signed_release_tag`; sin esos inputs se ejecuta
 la compilación normal.
 
+La subida directa a `uploads.github.com` también devuelve HTTP 401 en esta
+integración. Para entregar los archivos se admite una rama separada de artifacts,
+con etiqueta fija `v6.0-rcN-apks` y enlaces desde la prerelease. El verificador
+elige esa etiqueta sólo cuando el APK no figura como asset de la release; una
+descarga anunciada que falla no se ignora. La comparación completa con CI y el
+certificado exigido son iguales en ambos casos. No se guardan APK binarios en la
+rama del código fuente ni se publica material privado de firma.
+
 Productos de la candidata firmada:
 
 - `Animal-Crossing-Android-V6.0-Universal.apk`
