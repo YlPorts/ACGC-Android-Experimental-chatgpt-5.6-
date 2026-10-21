@@ -65,12 +65,40 @@ def symbols(readelf, path):
     return defined, needed, dependencies
 
 
+def jni_contract(classes):
+    """Read actual compiled Java declarations, including SDL's input/HID classes."""
+    names = sorted(str(p.relative_to(classes).with_suffix("")).replace(os.sep, ".")
+                   for p in classes.rglob("*.class"))
+    assert names, f"no compiled Java classes in {classes}"
+    methods, owner = [], None
+    for line in output(["javap", "-p", "-s", "-classpath", classes, *names]).splitlines():
+        declaration = re.search(r"\b(?:class|interface) ([\w.$]+)", line)
+        if declaration:
+            owner = declaration[1]
+        native = re.search(r"\bnative\s+.+?\s+(\w+)\(", line)
+        if native:
+            assert owner, f"native method without declaring class: {line}"
+            methods.append([owner, native[1], None])
+        elif line.strip().startswith("descriptor:") and methods and methods[-1][2] is None:
+            methods[-1][2] = line.split("descriptor:", 1)[1].strip()
+    assert methods and all(m[2] and m[2].startswith("(") for m in methods), "incomplete compiled JNI contract"
+    return methods
+
+
+def jni_mangle(value):
+    special = {"/": "_", "_": "_1", ";": "_2", "[": "_3"}
+    return "".join(c if c.isascii() and c.isalnum() else special.get(c, f"_0{ord(c):04x}")
+                   for c in value)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("apk", type=Path)
     parser.add_argument("--abi", action="append", required=True, choices=ABIS)
     parser.add_argument("--ndk", type=Path, required=True)
     parser.add_argument("--build-tools", type=Path, required=True)
+    parser.add_argument("--jni-classes", type=Path, required=True,
+                        help="Gradle javac classes directory for this architecture flavor")
     parser.add_argument("--keystore", type=Path)
     parser.add_argument("--match-signature", type=Path)
     parser.add_argument("--unsigned", action="store_true",
@@ -82,6 +110,7 @@ def main():
     sdk_tools = args.build_tools
     compiler = next((args.ndk / "toolchains/llvm/prebuilt").glob("*"))
     readelf = compiler / "bin/llvm-readelf"
+    methods = jni_contract(args.jni_classes)
     report = {"apk": args.apk.name, "sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
               "release_status": "unsigned-build" if args.unsigned else "candidate",
               "gameplay_tested": False, "signature_verified": False, "abis": {}}
@@ -121,6 +150,11 @@ def main():
                 descriptions[name] = {"load_alignment": aligns, "needed": needed}
             assert MAIN_JNI <= exports["libmain.so"], f"{abi}: missing app JNI or SDL_main"
             assert SDL_JNI <= exports["libSDL2.so"], f"{abi}: missing SDL JNI"
+            packaged_exports = set().union(*exports.values())
+            for owner, method, signature in methods:
+                short = "Java_" + jni_mangle(owner.replace(".", "/")) + "_" + jni_mangle(method)
+                long = short + "__" + jni_mangle(signature[1:signature.index(")")])
+                assert short in packaged_exports or long in packaged_exports, f"{abi}: missing JNI {owner}.{method}{signature}"
             # Resolve imports against all packaged dependencies and the real
             # minSdk=23 NDK platform stubs. Also inspect transitive dependencies.
             available = set().union(*exports.values())
@@ -163,6 +197,7 @@ def main():
     assert "package: name='com.acgc.port'" in badging, "application ID changed"
     assert "versionCode='6'" in badging and "sdkVersion:'23'" in badging, "unexpected version/minSdk"
     report["verified"] = True
+    report["jni_methods_verified"] = len(methods)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2) + "\n")

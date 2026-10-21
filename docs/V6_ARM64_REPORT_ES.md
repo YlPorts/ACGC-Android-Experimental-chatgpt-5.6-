@@ -106,6 +106,10 @@ Los resultados estructurados se generan con los scripts de `tools/validation/`
 y se adjuntan como artifacts de Actions. `check_apk.py` comprueba también
 `SDL_main`, los dos JNI propios, los JNI de inicialización SDL y la resolución de
 importaciones contra las bibliotecas empaquetadas y los stubs NDK de API 23.
+Además lee las clases Java realmente compiladas mediante `javap` y exige
+exportaciones para sus **54 métodos nativos**, incluyendo entrada, audio, mandos
+e HID. Esta comprobación pasa en las tres candidatas locales; no equivale a
+ejecutar esos dispositivos.
 
 ## Compilación y firma
 

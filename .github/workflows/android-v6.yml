@@ -182,7 +182,8 @@ jobs:
             KEYCHECK=(--unsigned)
             SUFFIX=-unsigned
           fi
-          python3 tools/validation/check_apk.py "$APK" "${ABIS[@]}" "${KEYCHECK[@]}" --ndk "$ANDROID_HOME/ndk/$NDK_VERSION" --build-tools "$ANDROID_HOME/build-tools/35.0.0" --output "build/validation/apk-$FLAVOR.json"
+          CLASSES="android/app/build/intermediates/javac/${FLAVOR}Debug/compile${FLAVOR^}DebugJavaWithJavac/classes"
+          python3 tools/validation/check_apk.py "$APK" "${ABIS[@]}" "${KEYCHECK[@]}" --jni-classes "$CLASSES" --ndk "$ANDROID_HOME/ndk/$NDK_VERSION" --build-tools "$ANDROID_HOME/build-tools/35.0.0" --output "build/validation/apk-$FLAVOR.json"
           mkdir -p dist
           cp "$APK" "dist/Animal-Crossing-Android-V6.0-$LABEL$SUFFIX.apk"
           cp "build/validation/apk-$FLAVOR.json" dist/
