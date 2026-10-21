@@ -1,0 +1,23 @@
+{
+  "source_commit": "c5572284bde60ef178ed95aa3a33a10982e0d540",
+  "ci_build_run_id": 39620348697,
+  "previous_tested_phone_version": "6.0-rc4-pc0.9.3",
+  "phone_user_observations": {
+    "arm64_boots": true,
+    "black_graphics": true,
+    "music_missing": true,
+    "rc4_arm32_tested": false
+  },
+  "rc5_graphics_regression_reproduced_and_fixed": true,
+  "rc5_music_confirmed_fixed": false,
+  "rc5_gameplay_tested": false,
+  "physical_mali_tested": false,
+  "local_component_tests_per_platform": 20,
+  "gles_pixel_assertions_per_shader_mode": 9,
+  "save_layout_contracts_per_abi": 98,
+  "synthetic_pcm_bytes": 15360,
+  "synthetic_pcm_cross_abi_identical": true,
+  "synthetic_pcm_sha256": "9e2bda804a79d613eb2b789ce27e07f317422f25ef2add5502e71769fd5ea2e1",
+  "release_status": "candidate",
+  "signature_certificate_sha256": "265e4f32ba1e44b346e8361941a3e0f02f3549ea5e6d9bbecf29f6ccebdaeccc"
+}

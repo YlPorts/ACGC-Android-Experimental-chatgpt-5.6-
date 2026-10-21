@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "api": "OpenGL ES 3",
+  "renderer": "Mesa software",
+  "production_paths": [
+    "GX",
+    "TEV shaders",
+    "Emu64"
+  ],
+  "shader_modes": [
+    "specialized",
+    "uber"
+  ],
+  "gameplay_tested": false,
+  "physical_mali_tested": false
+}
