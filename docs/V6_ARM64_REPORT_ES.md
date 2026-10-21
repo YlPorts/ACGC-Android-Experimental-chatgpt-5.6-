@@ -38,8 +38,10 @@ El arranque de heaps del backend PC se separa en `pc_jsystem_heap.cpp` para
 probarlo sin GPU, ISO ni reemplazar asignadores, constructores o métodos por
 stubs. Se conserva la implementación de GameCube para su compilación original.
 `heap_boot_test` recorre OSInit → firstInit → createRoot/create, reserva el
-búfer de excepción, crea un heap de juego de 0x380000 bytes, escribe/lee memoria
-y libera recursos. Comprueba integridad y recuperación del espacio. Se ejecuta
+búfer de excepción, crea un heap hijo de prueba de 0x380000 bytes y reserva el
+bloque de memoria del juego con la fórmula de `JW_Init2` (libre menos 0x10000),
+escribe/lee memoria y libera recursos. Comprueba integridad, ausencia de solapado
+y recuperación del espacio. Se ejecuta
 con política del arranque, presupuesto explícito y límites de arena desplazados
 16 bytes para comprobar también el redondeo del OS en ARM64. Pasan host ASan/UBSan,
 ARM32 y AArch64. La prueba anterior de heap empezaba con un constructor por

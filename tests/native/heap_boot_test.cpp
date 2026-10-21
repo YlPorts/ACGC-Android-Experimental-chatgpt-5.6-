@@ -8,8 +8,8 @@
 #include <cstring>
 #include <time.h>
 
-/* Only the SDL clock is adapted to POSIX. Arena initialization, root/child heap
- * creation, mutexes, allocation and disposal are production implementations. */
+/* The SDL clock and diagnostic output are adapted to POSIX. Arena initialization,
+ * heap creation, mutexes, allocation and disposal are production implementations. */
 extern "C" {
 int g_pc_verbose = 1;
 int g_pc_time_override = -1, g_pc_min_override = -1, g_pc_sec_override = -1;
@@ -66,17 +66,29 @@ int main(int argc, char** argv) {
     void* console = system->alloc(JFWSystem::CSetUpParam::exConsoleBufferSize, 4);
     assert(console && JKRHeap::findFromRoot(console) == system);
     std::memset(console, 0xa5, JFWSystem::CSetUpParam::exConsoleBufferSize);
-    // Exercise the next large child heap used by jsyswrap, without disc/GPU data.
-    JKRExpHeap* game = JKRExpHeap::create(0x380000, system, false);
-    assert(game && game->check());
-    void* data = game->alloc(65537, 32);
-    assert(data && (uintptr_t)data % 32 == 0 && JKRHeap::findFromRoot(data) == game);
+    // Exercise nested heap ownership/coalescing without disc or GPU data.
+    JKRExpHeap* child = JKRExpHeap::create(0x380000, system, false);
+    assert(child && child->check());
+    void* data = child->alloc(65537, 32);
+    assert(data && (uintptr_t)data % 32 == 0 && JKRHeap::findFromRoot(data) == child);
     std::memset(data, 0x3c, 65537);
     for (unsigned i = 0; i < 65537; ++i) assert(((u8*)data)[i] == 0x3c);
     for (u32 i = 0; i < JFWSystem::CSetUpParam::exConsoleBufferSize; ++i)
         assert(((u8*)console)[i] == 0xa5);
-    game->free(data);
-    delete game;
+    child->free(data);
+    delete child;
+    // JW_Init2 reserves the game arena from the system heap with this formula.
+    // Keep the console allocation alive to check that the large block cannot
+    // overlap it. No claim is made about loading archives or running the game.
+    const u32 gameArenaSize = system->getFreeSize() - 0x10000;
+    auto gameArena = (u8*)system->alloc(gameArenaSize, 32);
+    assert(gameArena && (uintptr_t)gameArena % 32 == 0);
+    assert(JKRHeap::findFromRoot(gameArena) == system);
+    std::memset(gameArena, 0x7e, gameArenaSize);
+    for (u32 i = 0; i < gameArenaSize; ++i) assert(gameArena[i] == 0x7e);
+    for (u32 i = 0; i < JFWSystem::CSetUpParam::exConsoleBufferSize; ++i)
+        assert(((u8*)console)[i] == 0xa5);
+    system->free(gameArena);
     system->free(console);
     assert(root->check() && system->check() && system->getFreeSize() == freeBefore);
     std::fprintf(stderr, "boot: console and game heap allocation/free passed\n");
